@@ -154,7 +154,12 @@ export interface CaptivePortalTheme {
   updated_at: string;
 }
 
-type TableDef<Row> = { Row: Row; Insert: Partial<Row>; Update: Partial<Row> };
+type TableDef<Row extends object> = {
+  Row: Row & Record<string, unknown>;
+  Insert: Partial<Row> & Record<string, unknown>;
+  Update: Partial<Row> & Record<string, unknown>;
+  Relationships: [];
+};
 
 export interface Database {
   public: {
@@ -170,5 +175,7 @@ export interface Database {
       transactions: TableDef<Transaction>;
       captive_portal_themes: TableDef<CaptivePortalTheme>;
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
   };
 }
