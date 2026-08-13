@@ -9,7 +9,7 @@ max_rows = 1000
 
 [db]
 port = 54322
-major_version = 15
+major_version = 17
 
 [studio]
 enabled = true
@@ -28,9 +28,7 @@ enabled = true
 [storage]
 enabled = true
 
-[functions]
-verify_jwt = true
-
+# Functions default to requiring a Supabase auth JWT unless overridden below.
 # Public-facing functions: called by the captive portal (anon), Pesapal's IPN
 # webhook, or a router's heartbeat script — none of which carry a Supabase
 # user JWT. They authenticate themselves instead (device token / IPN payload
