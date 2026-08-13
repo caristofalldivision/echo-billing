@@ -1,0 +1,43 @@
+project_id = "echo-billing"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage"]
+extra_search_path = ["public"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000"]
+jwt_expiry = 3600
+enable_signup = true
+
+[realtime]
+enabled = true
+
+[storage]
+enabled = true
+
+[functions]
+verify_jwt = true
+
+# Public-facing functions: called by the captive portal (anon), Pesapal's IPN
+# webhook, or a router's heartbeat script — none of which carry a Supabase
+# user JWT. They authenticate themselves instead (device token / IPN payload
+# validation / org-scoped API key) — see each function's source.
+[functions.portal-api]
+verify_jwt = false
+[functions.pesapal-ipn]
+verify_jwt = false
+[functions.heartbeat]
+verify_jwt = false

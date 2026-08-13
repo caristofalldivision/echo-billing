@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Inter:wght@400;500;600&display=swap");
+
+body {
+  background-color: #faf9f4;
+  color: #1e1b2e;
+  font-family: "Inter", "Segoe UI", sans-serif;
+  background-image: radial-gradient(#e0e1fd 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.font-display {
+  font-family: "Baloo 2", "Segoe UI", sans-serif;
+}
+
+.card {
+  @apply bg-white rounded-echo shadow-echo border border-echo-indigo-100/60 p-6;
+}
+
+.stat-tile {
+  @apply card flex flex-col gap-1;
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 rounded-full bg-echo-indigo-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-echo-indigo-600 disabled:opacity-50;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 rounded-full border border-echo-indigo-200 bg-white px-5 py-2.5 text-sm font-semibold text-echo-indigo-600 transition hover:bg-echo-indigo-50;
+}
+
+.input {
+  @apply w-full rounded-xl border border-echo-indigo-100 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-echo-indigo-400 focus:ring-2 focus:ring-echo-indigo-100;
+}
+
+.badge {
+  @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold;
+}

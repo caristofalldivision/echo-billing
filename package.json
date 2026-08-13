@@ -1,0 +1,17 @@
+{
+  "name": "echo-billing",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Echo — MikroTik hotspot & PPPoE billing system",
+  "scripts": {
+    "dev:admin": "pnpm --filter echo-admin dev",
+    "dev:portal": "pnpm --filter echo-captive-portal dev",
+    "build:admin": "pnpm --filter echo-admin build",
+    "build:portal": "pnpm --filter echo-captive-portal build",
+    "supabase:start": "supabase start",
+    "supabase:functions:serve": "supabase functions serve"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

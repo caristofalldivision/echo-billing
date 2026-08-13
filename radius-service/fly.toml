@@ -1,0 +1,38 @@
+# fly launch --no-deploy first to generate an app name, then adjust this file
+# and `fly deploy`. Needs privileged networking for WireGuard — see README.md
+# for the caveat about Fly's own network also using WireGuard internally,
+# and a plain-VPS fallback if that conflicts in practice.
+app = "echo-radius"
+primary_region = "jnb" # pick the region closest to your routers
+
+[build]
+
+[env]
+  WIREGUARD_INTERFACE = "wg0"
+  WIREGUARD_LISTEN_PORT = "51820"
+  WIREGUARD_SERVER_ADDRESS = "10.77.0.1/16"
+  RADIUS_AUTH_PORT = "1812"
+  RADIUS_ACCT_PORT = "1813"
+
+[[services]]
+  internal_port = 1812
+  protocol = "udp"
+  [[services.ports]]
+    port = 1812
+
+[[services]]
+  internal_port = 1813
+  protocol = "udp"
+  [[services.ports]]
+    port = 1813
+
+[[services]]
+  internal_port = 51820
+  protocol = "udp"
+  [[services.ports]]
+    port = 51820
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256

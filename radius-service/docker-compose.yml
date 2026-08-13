@@ -1,0 +1,16 @@
+# Local dev only. WireGuard bootstrap will warn-and-skip unless you run with
+# the capabilities below — RADIUS auth/accounting still work fine without it,
+# which is enough to test against a local `radtest` client.
+services:
+  radius-service:
+    build: .
+    env_file: .env
+    ports:
+      - "1812:1812/udp"
+      - "1813:1813/udp"
+      - "51820:51820/udp"
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    network_mode: host

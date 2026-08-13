@@ -1,0 +1,263 @@
+@import url("https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Inter:wght@400;500;600&display=swap");
+
+:root {
+  --primary: #5b5fef;
+  --secondary: #ffb84d;
+  --ink: #1e1b2e;
+  --paper: #faf9f4;
+  --muted: #6b7280;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+.bg-doodle {
+  position: fixed;
+  inset: 0;
+  background-repeat: no-repeat;
+  background-position: center 60px;
+  background-size: 140% auto;
+  opacity: 0.5;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.shell {
+  position: relative;
+  z-index: 1;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 32px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 100vh;
+}
+
+.header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.logo {
+  height: 56px;
+  width: 56px;
+}
+
+.header h1 {
+  font-family: "Baloo 2", sans-serif;
+  font-size: 26px;
+  margin: 4px 0 0;
+  color: var(--primary);
+}
+
+.tagline {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.tabs {
+  display: flex;
+  background: #fff;
+  border-radius: 999px;
+  padding: 4px;
+  box-shadow: 0 6px 20px -10px rgba(30, 27, 46, 0.25);
+}
+
+.tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 10px 12px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tab.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+.panel {
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.panel.active {
+  display: flex;
+}
+
+.plans {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plan-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 16px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 10px 30px -16px rgba(30, 27, 46, 0.3);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.plan-card:hover {
+  border-color: var(--primary);
+}
+
+.plan-card .plan-name {
+  font-weight: 700;
+  font-family: "Baloo 2", sans-serif;
+}
+
+.plan-card .plan-meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.plan-card .plan-price {
+  font-family: "Baloo 2", sans-serif;
+  font-weight: 700;
+  color: var(--primary);
+  font-size: 18px;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+input {
+  border: 1.5px solid #e0e1fd;
+  border-radius: 14px;
+  padding: 13px 14px;
+  font-size: 15px;
+  outline: none;
+}
+
+input:focus {
+  border-color: var(--primary);
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 14px;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.selected-plan-label {
+  font-size: 14px;
+  margin: 0;
+}
+
+.status-box {
+  background: #fff;
+  border-radius: 20px;
+  padding: 28px 18px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 10px 30px -16px rgba(30, 27, 46, 0.3);
+}
+
+.status-box.success {
+  background: #e3fbef;
+}
+
+.status-box.failed {
+  background: #fee9e7;
+}
+
+.success-icon {
+  height: 64px;
+  width: 64px;
+}
+
+.spinner {
+  height: 32px;
+  width: 32px;
+  border: 4px solid #e0e1fd;
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 12px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.footer {
+  margin-top: auto;
+  text-align: center;
+  padding-top: 12px;
+}
+
+.terms {
+  max-width: 340px;
+  margin: 4px auto 0;
+}

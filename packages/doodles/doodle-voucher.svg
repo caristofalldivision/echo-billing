@@ -1,0 +1,9 @@
+<svg width="220" height="140" viewBox="0 0 220 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M20 40 Q20 20 42 20 L178 20 Q200 20 200 40 Q188 46 188 56 Q188 66 200 72 Q200 100 178 100 L42 100 Q20 100 20 72 Q32 66 32 56 Q32 46 20 40 Z"
+        fill="#FFF1DA" stroke="#E89B2C" stroke-width="3.5" stroke-linejoin="round"/>
+  <path d="M92 24 L92 96" stroke="#E89B2C" stroke-width="2.5" stroke-dasharray="6 6" opacity="0.7"/>
+  <text x="146" y="66" font-family="'Baloo 2', sans-serif" font-size="26" font-weight="700" fill="#1E1B2E" text-anchor="middle">WiFi</text>
+  <path d="M42 46 Q56 32 70 46" stroke="#5B5FEF" stroke-width="3" stroke-linecap="round"/>
+  <path d="M36 58 Q56 38 76 58" stroke="#5B5FEF" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+  <circle cx="56" cy="70" r="4" fill="#5B5FEF"/>
+</svg>

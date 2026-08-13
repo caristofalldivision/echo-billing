@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+  <title>Echo WiFi</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div class="bg-doodle" style="background-image: url('/assets/doodle-waves.svg')"></div>
+
+  <main class="shell">
+    <header class="header">
+      <img src="/assets/logo.svg" alt="" class="logo" />
+      <h1 id="headline">Get Connected</h1>
+      <p id="tagline" class="tagline">Fast, affordable WiFi — pay and you're online in seconds.</p>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="buy">Buy Access</button>
+      <button class="tab" data-tab="voucher">I have a voucher</button>
+    </nav>
+
+    <section id="panel-buy" class="panel active">
+      <div id="plans" class="plans">
+        <p class="muted">Loading plans…</p>
+      </div>
+
+      <form id="purchase-form" class="hidden">
+        <p class="selected-plan-label">You selected <strong id="selected-plan-name"></strong></p>
+        <label>Phone number (M-Pesa)</label>
+        <input id="phone" type="tel" inputmode="tel" placeholder="07XXXXXXXX" required />
+        <button type="submit" class="btn-primary">Pay &amp; Connect</button>
+        <button type="button" class="btn-link" id="back-to-plans">← choose a different plan</button>
+      </form>
+
+      <div id="purchase-status" class="hidden status-box">
+        <div class="spinner"></div>
+        <p id="status-text">Waiting for M-Pesa confirmation…</p>
+        <p class="muted small">Check your phone for the STK push prompt.</p>
+      </div>
+
+      <div id="purchase-success" class="hidden status-box success">
+        <img src="/assets/success.svg" alt="" class="success-icon" onerror="this.style.display='none'" />
+        <p>Payment received — connecting you now…</p>
+        <p class="muted small">Your code: <strong id="success-code"></strong> (also sent by SMS)</p>
+      </div>
+
+      <div id="purchase-failed" class="hidden status-box failed">
+        <p>Payment didn't go through.</p>
+        <button class="btn-primary" id="retry-purchase">Try again</button>
+      </div>
+    </section>
+
+    <section id="panel-voucher" class="panel">
+      <label>Enter your voucher code</label>
+      <form id="voucher-form">
+        <input id="voucher-code" type="text" placeholder="XXXXX-XXXXX" autocapitalize="characters" required />
+        <button type="submit" class="btn-primary">Connect</button>
+      </form>
+      <p id="voucher-message" class="muted small"></p>
+    </section>
+
+    <footer class="footer">
+      <p id="support-line" class="muted small"></p>
+      <p id="terms" class="muted small terms"></p>
+    </footer>
+  </main>
+
+  <!-- RouterOS substitutes $(link-login-only)/$(link-orig) only when this
+       file is served BY the router's hotspot server, not in local dev. -->
+  <form id="mikrotik-login" name="login" action="$(link-login-only)" method="post" class="hidden">
+    <input type="hidden" name="dst" value="$(link-orig)" />
+    <input type="hidden" name="popup" value="true" />
+    <input type="hidden" name="username" id="mt-username" />
+    <input type="hidden" name="password" id="mt-password" />
+  </form>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

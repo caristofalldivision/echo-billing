@@ -1,0 +1,18 @@
+{
+  "name": "echo-radius-service",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Always-on RADIUS server + WireGuard concentrator for Echo. Deployed to Fly.io — the one piece of Echo that can't be serverless.",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "pg": "^8.12.0",
+    "radius": "^1.1.4"
+  }
+}
