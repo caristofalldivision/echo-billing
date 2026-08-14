@@ -28,11 +28,20 @@ function. This runs as an always-on container instead.
 ```bash
 fly launch --no-deploy   # first time, picks up fly.toml
 fly secrets set \
-  DATABASE_URL="postgresql://postgres:...@db.<project>.supabase.co:5432/postgres" \
+  DATABASE_URL="postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres" \
   RADIUS_SHARED_SECRET="<matches provisioning-script's RADIUS_SHARED_SECRET secret>" \
   WIREGUARD_SERVER_PRIVATE_KEY="<generate with `wg genkey`>"
-fly deploy
+fly deploy --remote-only   # builds on Fly's servers, no local Docker needed
 ```
+
+**Use the session pooler (port 5432), not `db.<project-ref>.supabase.co`.** The
+direct connection host is IPv6-only unless you've bought Supabase's IPv4
+add-on, and Fly's outbound IPv6 support isn't guaranteed — that combination
+can fail to connect with no obvious error. The session pooler is IPv4-
+reachable and, unlike the transaction pooler on port 6543, supports the
+long-lived persistent connections `pg.Pool` here relies on. Find your
+project's exact pooler hostname/ref under Project Settings > Database in
+the Supabase dashboard.
 
 After deploying, set these Supabase function secrets so newly-generated
 provisioning scripts point at the right place:
