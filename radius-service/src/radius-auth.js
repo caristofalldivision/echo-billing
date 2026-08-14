@@ -7,11 +7,16 @@ const db = require("./db");
 // apps/captive-portal — it auto-fills the MikroTik login form that way).
 // PPPoE logins use the account's real username/password.
 async function authenticate(username, password) {
-  const voucher = await db.claimVoucher(username);
-  if (voucher) {
-    if (password !== username) return { accept: false };
-    const plan = await db.findPlan(voucher.plan_id);
-    return { accept: true, orgId: voucher.org_id, sessionType: "hotspot", plan };
+  // Only attempt to claim when the password actually matches the voucher
+  // convention — claimVoucher() marks the code used, so calling it on a
+  // mismatched attempt would burn a customer's paid voucher without ever
+  // granting access.
+  if (password === username) {
+    const voucher = await db.claimVoucher(username);
+    if (voucher) {
+      const plan = await db.findPlan(voucher.plan_id);
+      return { accept: true, orgId: voucher.org_id, sessionType: "hotspot", plan };
+    }
   }
 
   const account = await db.findPppoeAccount(username);
