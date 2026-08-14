@@ -39,3 +39,5 @@ verify_jwt = false
 verify_jwt = false
 [functions.heartbeat]
 verify_jwt = false
+[functions.org-exists]
+verify_jwt = false

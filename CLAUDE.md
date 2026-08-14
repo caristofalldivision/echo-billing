@@ -28,6 +28,28 @@ terminated on `radius-service`. RADIUS auth/accounting rides that tunnel; it's
 also the path for any future live remote-management calls into a router's
 MikroTik API. Full rationale: root `README.md`.
 
+## Account model
+
+Single org, owner/staff roles. The very first person to visit `/signup`
+creates the one `organizations` row and becomes its `owner`
+(`bootstrap_organization()` in `supabase/migrations/0002_team_management.sql`,
+table-locked so concurrent first-signups can't both win); `/signup`
+self-gates closed after that (`org-exists` function) and tells everyone else
+to sign in instead. From then on, owners add staff from Settings → Team —
+they type an email/name/role and the portal generates a one-time temp
+password shown once on screen for the owner to relay manually (no email
+dependency, so it works before Resend is ever configured). New hires change
+that password from Settings → Account; `/login`'s "Forgot password?" and
+the `/auth/callback` PKCE-exchange route cover self-service recovery after
+that. All of this — creating/listing/updating/removing `admin_users` rows,
+and reading their email from `auth.users` — goes through the
+`org-bootstrap`/`admin-list-users`/`admin-add-user`/`admin-update-role`/
+`admin-remove-user` edge functions using the service-role client with their
+own checks (see `supabase/functions/_shared/auth.ts`'s `getCallerAdmin`),
+**not** new RLS policies, because listing teammates needs `auth.users` data
+RLS can never expose to a browser client anyway. Owner-only actions guard
+against demoting/removing the last remaining owner.
+
 ## Guardrails — read before changing code here
 
 **Fixed captive-portal filenames are load-bearing, not a style choice.**
@@ -99,17 +121,19 @@ Full setup steps are in the root `README.md` and each subfolder's own
 Initial scaffold is built and committed: schema, admin portal with functional
 core pages, edge functions with real provider integration code, captive
 portal purchase/voucher flow, RouterOS provisioning template, and a RADIUS +
-WireGuard service skeleton. `pnpm install` and `apps/admin`'s dev server have
-been verified to run locally. Nothing has been tested against a live
-Supabase project, real provider sandbox credentials, or an actual router yet.
+WireGuard service skeleton. `apps/admin` builds and deploys cleanly on
+Vercel and has a working signup/login/team-management account model (see
+"Account model" above). Nothing has been tested against real provider
+sandbox credentials or an actual router yet.
 
 ## Roadmap
 
 **Phase 1 — wire up real infra.** Create a Supabase project, `supabase link`
-+ `supabase db push` the migration, point `apps/admin/.env.local` at it,
-create the first admin user, get login → dashboard actually working. Get
-Pesapal sandbox, TalkSasa, and Resend credentials into Settings and confirm
-test sends/payments round-trip through the edge functions.
++ `supabase db push` the migrations, point `apps/admin/.env.local` at it,
+deploy the edge functions, and visit `/signup` to create the first
+(owner) admin account — see "Account model" above. Get Pesapal sandbox,
+TalkSasa, and Resend credentials into Settings and confirm test
+sends/payments round-trip through the edge functions.
 
 **Phase 2 — RADIUS/WireGuard for real.** Deploy `radius-service` (Fly.io,
 falling back to a plain VPS if Fly's own WireGuard-based private networking

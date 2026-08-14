@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -11,6 +12,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -24,6 +27,20 @@ export default function LoginPage() {
     }
     router.push("/");
     router.refresh();
+  }
+
+  async function handleForgotPassword() {
+    if (!email) {
+      setError("Enter your email above first, then click \"Forgot password?\"");
+      return;
+    }
+    setError(null);
+    setResetting(true);
+    await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback?next=/settings/account`,
+    });
+    setResetting(false);
+    setResetSent(true);
   }
 
   return (
@@ -59,10 +76,30 @@ export default function LoginPage() {
             />
           </div>
           {error && <p className="text-sm text-echo-coral-500">{error}</p>}
+          {resetSent && (
+            <p className="text-sm text-echo-mint-500">
+              If an account exists for that email, a reset link is on its way.
+            </p>
+          )}
           <button type="submit" className="btn-primary mt-2" disabled={loading}>
             {loading ? "Signing in…" : "Sign in"}
           </button>
+          <button
+            type="button"
+            className="text-center text-xs font-medium text-echo-indigo-500"
+            onClick={handleForgotPassword}
+            disabled={resetting}
+          >
+            {resetting ? "Sending…" : "Forgot password?"}
+          </button>
         </form>
+
+        <p className="mt-4 text-center text-xs text-echo-muted">
+          Setting up Echo for the first time?{" "}
+          <Link href="/signup" className="font-medium text-echo-indigo-500">
+            Create an account
+          </Link>
+        </p>
       </div>
     </main>
   );

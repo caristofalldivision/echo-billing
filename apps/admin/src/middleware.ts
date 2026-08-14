@@ -23,11 +23,19 @@ export async function middleware(request: NextRequest) {
     },
   );
 
+  // The PKCE code exchange happens here, before any session cookie exists —
+  // let it through untouched so the route handler can set the cookie and
+  // issue its own redirect.
+  if (request.nextUrl.pathname.startsWith("/auth/callback")) {
+    return response;
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAuthRoute = request.nextUrl.pathname.startsWith("/login");
+  const isAuthRoute =
+    request.nextUrl.pathname.startsWith("/login") || request.nextUrl.pathname.startsWith("/signup");
   if (!user && !isAuthRoute) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";

@@ -4,6 +4,8 @@ const SECTIONS = [
   { href: "/settings/payments", title: "Payments", desc: "Pesapal consumer key/secret and environment", icon: "💳" },
   { href: "/settings/sms", title: "SMS", desc: "TalkSasa API key and sender ID", icon: "📩" },
   { href: "/settings/email", title: "Email", desc: "Resend API key and from address", icon: "✉️" },
+  { href: "/settings/team", title: "Team", desc: "Add staff accounts and manage roles", icon: "🧑‍🤝‍🧑" },
+  { href: "/settings/account", title: "Account", desc: "Your email and password", icon: "🔐" },
 ];
 
 export default function SettingsPage() {
