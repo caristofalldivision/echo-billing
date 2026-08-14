@@ -22,16 +22,20 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  async function checkOrgExists() {
+    setChecking(true);
+    setCheckError(null);
+    const { data, error } = await supabase.functions.invoke("org-exists");
+    if (error) {
+      setCheckError(await getFunctionErrorMessage(error, "Couldn't check setup status."));
+    } else {
+      setOrgExists(!!data?.exists);
+    }
+    setChecking(false);
+  }
+
   useEffect(() => {
-    (async () => {
-      const { data, error } = await supabase.functions.invoke("org-exists");
-      if (error) {
-        setCheckError("Couldn't check setup status. Please try again in a moment.");
-      } else {
-        setOrgExists(!!data?.exists);
-      }
-      setChecking(false);
-    })();
+    checkOrgExists();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -92,6 +96,9 @@ export default function SignupPage() {
         ) : checkError ? (
           <div className="card flex flex-col gap-3 text-center">
             <p className="text-sm text-echo-coral-500">{checkError}</p>
+            <button className="btn-secondary self-center" onClick={checkOrgExists}>
+              Retry
+            </button>
           </div>
         ) : orgExists ? (
           <div className="card flex flex-col gap-3 text-center">

@@ -20,8 +20,29 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return withCors({ error: "Method not allowed" }, { status: 405 });
 
   try {
-    const { mikrotikDeviceId } = await req.json();
+    const { mikrotikDeviceId, confirmRegenerate } = await req.json();
     if (!mikrotikDeviceId) return withCors({ error: "mikrotikDeviceId is required" }, { status: 400 });
+
+    // These come from radius-service's own deployment (see radius-service/README.md
+    // and CLAUDE.md Phase 2) — without them the script would connect to nothing.
+    // Fail loudly instead of baking in placeholder values a router can never
+    // actually reach, which would silently produce an unusable script.
+    const wireguardServerPubkey = Deno.env.get("WIREGUARD_SERVER_PUBKEY");
+    const wireguardServerEndpoint = Deno.env.get("WIREGUARD_SERVER_ENDPOINT");
+    const radiusSecret = Deno.env.get("RADIUS_SHARED_SECRET");
+    const missing = [
+      !wireguardServerPubkey && "WIREGUARD_SERVER_PUBKEY",
+      !wireguardServerEndpoint && "WIREGUARD_SERVER_ENDPOINT",
+      !radiusSecret && "RADIUS_SHARED_SECRET",
+    ].filter(Boolean);
+    if (missing.length > 0) {
+      return withCors(
+        {
+          error: `radius-service isn't deployed yet — missing function secret(s): ${missing.join(", ")}. Deploy radius-service (see CLAUDE.md Phase 2) and set these with "supabase secrets set" before linking a router.`,
+        },
+        { status: 500 },
+      );
+    }
 
     const supabase = supabaseAdmin();
     const org = await getOrgSettings();
@@ -33,17 +54,28 @@ Deno.serve(async (req) => {
       .single();
     if (error || !device) return withCors({ error: "Device not found" }, { status: 404 });
 
+    // Regenerating credentials for an already-linked router disconnects it —
+    // require the caller to explicitly confirm that instead of doing it on
+    // every "show me the script again" click.
+    if (device.status === "linked" && !confirmRegenerate) {
+      return withCors(
+        {
+          error: "already_linked",
+          message:
+            "This router is already linked. Regenerating its script issues new WireGuard credentials and will disconnect it until the new script is run.",
+        },
+        { status: 409 },
+      );
+    }
+
     const keypair = nacl.box.keyPair();
     const mikrotikApiUsername = `echo-api-${randomToken(4).toLowerCase()}`;
     const mikrotikApiPassword = randomToken(18);
 
-    const { count } = await supabase
-      .from("mikrotik_devices")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", org.id)
-      .not("wireguard_tunnel_ip", "is", null);
-    const tunnelHostOctet = (count ?? 0) + 2; // .1 is reserved for radius-service
-    const wireguardTunnelIp = `10.77.0.${tunnelHostOctet}/32`;
+    const { data: wireguardTunnelIp, error: ipError } = await supabase.rpc("next_wireguard_tunnel_ip", {
+      p_org_id: org.id,
+    });
+    if (ipError) throw ipError;
 
     const updated = {
       wireguard_client_pubkey: b64(keypair.publicKey),
@@ -51,7 +83,8 @@ Deno.serve(async (req) => {
       wireguard_tunnel_ip: wireguardTunnelIp,
       mikrotik_api_username: mikrotikApiUsername,
       mikrotik_api_password: mikrotikApiPassword,
-      wireguard_server_pubkey: Deno.env.get("WIREGUARD_SERVER_PUBKEY") ?? "",
+      wireguard_server_pubkey: wireguardServerPubkey,
+      status: "pending",
     };
     await supabase.from("mikrotik_devices").update(updated).eq("id", device.id);
 
@@ -59,12 +92,12 @@ Deno.serve(async (req) => {
       deviceId: device.id,
       deviceName: device.name,
       provisioningToken: device.provisioning_token,
-      wireguardServerPubkey: updated.wireguard_server_pubkey,
-      wireguardServerEndpoint: Deno.env.get("WIREGUARD_SERVER_ENDPOINT") ?? "radius.echo.example:51820",
+      wireguardServerPubkey: updated.wireguard_server_pubkey!,
+      wireguardServerEndpoint: wireguardServerEndpoint!,
       wireguardClientPrivkey: updated.wireguard_client_privkey,
-      wireguardTunnelIp: updated.wireguard_tunnel_ip,
+      wireguardTunnelIp: updated.wireguard_tunnel_ip as string,
       radiusTunnelIp: "10.77.0.1",
-      radiusSecret: Deno.env.get("RADIUS_SHARED_SECRET") ?? "change-me",
+      radiusSecret: radiusSecret!,
       mikrotikApiUsername,
       mikrotikApiPassword,
       captivePortalBaseUrl: `${Deno.env.get("SUPABASE_URL")}/storage/v1/object/public/captive-portal-builds`,
