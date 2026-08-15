@@ -174,7 +174,13 @@ ${fetchLines}
  * that's the one line responsible for a device ever showing "linked").
  */
 export function renderBootstrapScript(functionsBaseUrl: string, provisioningToken: string): string {
-  return `/tool fetch url="${functionsBaseUrl}/provisioning-fetch?token=${provisioningToken}" dst-path="echo-setup.rsc" mode=https
+  // NTP has to run here too, not just inside the fetched script — this
+  // fetch is itself an HTTPS request, so if it's the clock breaking cert
+  // validation, the fix needs to land before this line, not after it.
+  return `/system ntp client set enabled=yes
+:if ([:len [/system ntp client servers find address="pool.ntp.org"]] = 0) do={ /system ntp client servers add address=pool.ntp.org }
+:delay 5s
+/tool fetch url="${functionsBaseUrl}/provisioning-fetch?token=${provisioningToken}" dst-path="echo-setup.rsc" mode=https
 /import file-name=echo-setup.rsc
 `;
 }

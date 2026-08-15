@@ -95,13 +95,18 @@ export default function DevicesPage() {
   // without rotating its WireGuard credentials (which would disconnect
   // it) — provisioning-fetch is a public GET keyed off the device's own
   // provisioning_token, which the admin already has in hand.
+  //
+  // NOTE: this string must stay identical to renderBootstrapScript() in
+  // supabase/functions/_shared/router-template.ts — there's no server
+  // round-trip cheap enough to justify for a 5-line snippet, but that
+  // means changes to one must be copied to the other by hand.
   function handleShowBootstrap(device: MikrotikDevice) {
     setScriptFor(device.id);
     setScriptError(null);
     setShowFullScript(false);
     setScript("");
     setBootstrap(
-      `/tool fetch url="${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/provisioning-fetch?token=${device.provisioning_token}" dst-path="echo-setup.rsc" mode=https\n/import file-name=echo-setup.rsc\n`,
+      `/system ntp client set enabled=yes\n:if ([:len [/system ntp client servers find address="pool.ntp.org"]] = 0) do={ /system ntp client servers add address=pool.ntp.org }\n:delay 5s\n/tool fetch url="${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/provisioning-fetch?token=${device.provisioning_token}" dst-path="echo-setup.rsc" mode=https\n/import file-name=echo-setup.rsc\n`,
     );
   }
 
