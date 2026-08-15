@@ -257,7 +257,7 @@ export default function DevicesPage() {
                 </p>
                 <textarea
                   readOnly
-                  className="input h-20 font-mono text-xs"
+                  className="input h-32 font-mono text-xs"
                   value={bootstrap}
                   onFocus={(e) => e.currentTarget.select()}
                 />
