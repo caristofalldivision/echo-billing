@@ -91,6 +91,33 @@ export default function DevicesPage() {
     load();
   }
 
+  // Re-shows the current bootstrap for an already-provisioned device
+  // without rotating its WireGuard credentials (which would disconnect
+  // it) — provisioning-fetch is a public GET keyed off the device's own
+  // provisioning_token, which the admin already has in hand.
+  function handleShowBootstrap(device: MikrotikDevice) {
+    setScriptFor(device.id);
+    setScriptError(null);
+    setShowFullScript(false);
+    setScript("");
+    setBootstrap(
+      `/tool fetch url="${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/provisioning-fetch?token=${device.provisioning_token}" dst-path="echo-setup.rsc" mode=https\n/import file-name=echo-setup.rsc\n`,
+    );
+  }
+
+  async function loadFullScript(device: MikrotikDevice) {
+    setLoadingScript(true);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/provisioning-fetch?token=${device.provisioning_token}`,
+      );
+      setScript(await res.text());
+    } catch {
+      setScriptError("Couldn't load the full script. Please try again.");
+    }
+    setLoadingScript(false);
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -176,9 +203,21 @@ export default function DevicesPage() {
                           Cancel
                         </button>
                       </span>
+                    ) : d.wireguard_client_privkey ? (
+                      <span className="flex items-center gap-3">
+                        <button className="btn-secondary py-1.5" onClick={() => handleShowBootstrap(d)}>
+                          View setup script
+                        </button>
+                        <button
+                          className="text-xs font-medium text-signal-ink-dim hover:text-signal-alert"
+                          onClick={() => handleGenerateScript(d.id)}
+                        >
+                          Regenerate credentials
+                        </button>
+                      </span>
                     ) : (
                       <button className="btn-secondary py-1.5" onClick={() => handleGenerateScript(d.id)}>
-                        {d.status === "linked" ? "Regenerate script" : "Get setup script"}
+                        Get setup script
                       </button>
                     )}
                   </td>
@@ -232,7 +271,12 @@ export default function DevicesPage() {
               <button
                 type="button"
                 className="self-start text-sm font-medium text-signal-brand"
-                onClick={() => setShowFullScript((v) => !v)}
+                onClick={() => {
+                  const next = !showFullScript;
+                  setShowFullScript(next);
+                  const device = devices.find((d) => d.id === scriptFor);
+                  if (next && !script && device) loadFullScript(device);
+                }}
               >
                 {showFullScript ? "Hide full script" : "Show full script (manual import)"}
               </button>
@@ -240,7 +284,7 @@ export default function DevicesPage() {
                 <textarea
                   readOnly
                   className="input h-80 font-mono text-xs"
-                  value={script}
+                  value={loadingScript ? "Loading…" : script}
                   onFocus={(e) => e.currentTarget.select()}
                 />
               )}
