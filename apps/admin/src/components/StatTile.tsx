@@ -1,25 +1,26 @@
 export function StatTile({
   label,
   value,
-  accent = "indigo",
+  accent = "brand",
 }: {
   label: string;
   value: string | number;
-  accent?: "indigo" | "amber" | "mint";
+  accent?: "brand" | "pulse" | "voucher" | "alert";
 }) {
   const dot = {
-    indigo: "bg-echo-indigo-500",
-    amber: "bg-echo-amber-500",
-    mint: "bg-echo-mint-500",
+    brand: "bg-signal-brand",
+    pulse: "bg-signal-pulse",
+    voucher: "bg-signal-voucher",
+    alert: "bg-signal-alert",
   }[accent];
 
   return (
     <div className="stat-tile">
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-echo-muted">
-        <span className={`h-2 w-2 rounded-full ${dot}`} />
+      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-signal-ink-faint">
+        <span className={`h-2.5 w-2.5 ${dot}`} />
         {label}
       </div>
-      <div className="font-display text-3xl font-bold text-echo-ink">{value}</div>
+      <div className="font-mono text-3xl font-bold tabular-nums text-signal-ink">{value}</div>
     </div>
   );
 }

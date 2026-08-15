@@ -5,12 +5,13 @@ import { FunctionsHttpError } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { getFunctionErrorMessage } from "@/lib/supabase/functions";
 import type { MikrotikDevice } from "@/lib/supabase/types";
+import { EmptyState } from "@/components/EmptyState";
 
 const STATUS_STYLE: Record<MikrotikDevice["status"], string> = {
-  linked: "bg-echo-mint-100 text-echo-mint-500",
-  pending: "bg-echo-amber-100 text-echo-amber-600",
-  offline: "bg-echo-indigo-100 text-echo-indigo-600",
-  error: "bg-echo-coral-100 text-echo-coral-500",
+  linked: "bg-signal-pulse-soft text-signal-pulse",
+  pending: "bg-signal-voucher-soft text-signal-voucher",
+  offline: "bg-signal-ink-faint/15 text-signal-ink-dim",
+  error: "bg-signal-alert-soft text-signal-alert",
 };
 
 export default function DevicesPage() {
@@ -90,8 +91,8 @@ export default function DevicesPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-echo-ink">MikroTiks</h1>
-          <p className="text-sm text-echo-muted">Link routers to Echo — one script, run once, fully automated.</p>
+          <h1 className="text-2xl font-bold text-signal-ink">MikroTiks</h1>
+          <p className="text-sm text-signal-ink-dim">Link routers to Echo — one script, run once, fully automated.</p>
         </div>
         <button className="btn-primary" onClick={() => setShowForm((v) => !v)}>
           {showForm ? "Cancel" : "+ Add MikroTik"}
@@ -109,26 +110,32 @@ export default function DevicesPage() {
             <input className="input" value={site} onChange={(e) => setSite(e.target.value)} placeholder="e.g. Nairobi CBD" />
           </div>
           <button type="submit" className="btn-primary">Save</button>
-          {createError && <p className="w-full text-sm text-echo-coral-500">{createError}</p>}
+          {createError && <p className="w-full text-sm text-signal-alert">{createError}</p>}
         </form>
       )}
 
       <div className="card">
         {loadError ? (
           <div className="flex flex-col items-center gap-2 py-6 text-center">
-            <p className="text-sm text-echo-coral-500">{loadError}</p>
+            <p className="text-sm text-signal-alert">{loadError}</p>
             <button className="btn-secondary" onClick={load}>
               Retry
             </button>
           </div>
         ) : devices.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-10 text-center">
-            <img src="/doodle-empty.svg" alt="" className="h-32 w-32" />
-            <p className="text-sm text-echo-muted">No routers linked yet — add one to get its provisioning script.</p>
-          </div>
+          <EmptyState
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-10 w-10">
+                <rect x="4" y="4" width="16" height="7" rx="1.5" />
+                <rect x="4" y="13" width="16" height="7" rx="1.5" />
+                <path d="M8 7.5h.01M8 16.5h.01" />
+              </svg>
+            }
+            message="No routers linked yet — add one to get its provisioning script."
+          />
         ) : (
           <table className="w-full text-left text-sm">
-            <thead className="text-xs uppercase text-echo-muted">
+            <thead className="font-mono text-xs uppercase tracking-wide text-signal-ink-faint">
               <tr>
                 <th className="py-2 pr-4">Name</th>
                 <th className="py-2 pr-4">Site</th>
@@ -139,27 +146,27 @@ export default function DevicesPage() {
             </thead>
             <tbody>
               {devices.map((d) => (
-                <tr key={d.id} className="border-t border-echo-indigo-50">
-                  <td className="py-2 pr-4 font-medium">{d.name}</td>
-                  <td className="py-2 pr-4 text-echo-muted">{d.site ?? "—"}</td>
+                <tr key={d.id} className="border-t border-signal-border">
+                  <td className="py-2 pr-4 font-medium text-signal-ink">{d.name}</td>
+                  <td className="py-2 pr-4 text-signal-ink-dim">{d.site ?? "—"}</td>
                   <td className="py-2 pr-4">
                     <span className={`badge ${STATUS_STYLE[d.status]}`}>{d.status}</span>
                   </td>
-                  <td className="py-2 pr-4 text-echo-muted">
+                  <td className="py-2 pr-4 font-mono tabular-nums text-signal-ink-dim">
                     {d.last_seen_at ? new Date(d.last_seen_at).toLocaleString() : "never"}
                   </td>
                   <td className="py-2 pr-4">
                     {confirmRegenerateId === d.id ? (
                       <span className="flex items-center gap-2">
-                        <span className="text-xs text-echo-coral-500">This will disconnect it.</span>
+                        <span className="text-xs text-signal-alert">This will disconnect it.</span>
                         <button
-                          className="text-sm font-medium text-echo-coral-500"
+                          className="text-sm font-medium text-signal-alert"
                           onClick={() => handleGenerateScript(d.id, true)}
                         >
                           Regenerate anyway
                         </button>
                         <button
-                          className="text-sm font-medium text-echo-muted"
+                          className="text-sm font-medium text-signal-ink-dim"
                           onClick={() => setConfirmRegenerateId(null)}
                         >
                           Cancel
@@ -178,22 +185,22 @@ export default function DevicesPage() {
         )}
       </div>
 
-      {scriptError && <p className="text-sm text-echo-coral-500">{scriptError}</p>}
+      {scriptError && <p className="text-sm text-signal-alert">{scriptError}</p>}
 
       {scriptFor && (
         <div className="card">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-display text-lg font-bold">RouterOS setup script</h2>
-            <button className="text-sm text-echo-muted" onClick={() => setScriptFor(null)}>
+            <h2 className="text-lg font-bold text-signal-ink">RouterOS setup script</h2>
+            <button className="text-sm text-signal-ink-dim" onClick={() => setScriptFor(null)}>
               Close
             </button>
           </div>
-          <p className="mb-3 text-sm text-echo-muted">
+          <p className="mb-3 text-sm text-signal-ink-dim">
             Paste this into a New Terminal on the router (or import as .rsc). It sets up the WireGuard
             tunnel, RADIUS, hotspot/PPPoE profiles, walled garden, and pulls the captive portal — one time, no follow-up needed.
           </p>
           {loadingScript ? (
-            <p className="text-sm text-echo-muted">Generating…</p>
+            <p className="text-sm text-signal-ink-dim">Generating…</p>
           ) : (
             <textarea
               readOnly

@@ -59,8 +59,8 @@ export default function PlansPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-echo-ink">Plans</h1>
-          <p className="text-sm text-echo-muted">Hotspot passes and PPPoE packages customers can buy.</p>
+          <h1 className="text-2xl font-bold text-signal-ink">Plans</h1>
+          <p className="text-sm text-signal-ink-dim">Hotspot passes and PPPoE packages customers can buy.</p>
         </div>
         <button className="btn-primary" onClick={() => setShowForm((v) => !v)}>
           {showForm ? "Cancel" : "+ New plan"}
@@ -152,19 +152,19 @@ export default function PlansPage() {
         {plans.map((plan) => (
           <div key={plan.id} className="card flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <span className="badge bg-echo-indigo-100 text-echo-indigo-700">{plan.type}</span>
+              <span className="badge bg-signal-brand-soft text-signal-brand">{plan.type}</span>
               <button
-                className={`badge ${plan.is_active ? "bg-echo-mint-100 text-echo-mint-500" : "bg-echo-coral-100 text-echo-coral-500"}`}
+                className={`badge ${plan.is_active ? "bg-signal-pulse-soft text-signal-pulse" : "bg-signal-alert-soft text-signal-alert"}`}
                 onClick={() => toggleActive(plan)}
               >
                 {plan.is_active ? "Active" : "Disabled"}
               </button>
             </div>
-            <h3 className="font-display text-lg font-bold">{plan.name}</h3>
-            <p className="font-display text-2xl font-bold text-echo-indigo-500">
+            <h3 className="text-lg font-bold text-signal-ink">{plan.name}</h3>
+            <p className="font-mono text-2xl font-bold tabular-nums text-signal-brand">
               {plan.currency} {plan.price}
             </p>
-            <div className="text-sm text-echo-muted">
+            <div className="text-sm text-signal-ink-dim">
               {plan.duration_minutes ? `${plan.duration_minutes} min` : "No time limit"}
               {" · "}
               {plan.data_cap_mb ? `${plan.data_cap_mb} MB` : "Unlimited data"}

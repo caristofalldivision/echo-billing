@@ -1,0 +1,7 @@
+{
+  "name": "@echo/signal",
+  "version": "0.1.0",
+  "private": true,
+  "main": "tailwind-preset.js",
+  "files": ["tailwind-preset.js", "globals.css"]
+}

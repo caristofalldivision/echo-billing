@@ -1,9 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  presets: [
-    require("@echo/doodles/tailwind-preset.js"),
-    require("@echo/signal/tailwind-preset.js"),
-  ],
+  presets: [require("@echo/signal/tailwind-preset.js")],
   content: [
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",

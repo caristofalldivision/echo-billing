@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Transaction } from "@/lib/supabase/types";
+import { EmptyState } from "@/components/EmptyState";
 
 const STATUS_STYLE: Record<Transaction["status"], string> = {
-  completed: "bg-echo-mint-100 text-echo-mint-500",
-  pending: "bg-echo-amber-100 text-echo-amber-600",
-  failed: "bg-echo-coral-100 text-echo-coral-500",
-  cancelled: "bg-echo-indigo-100 text-echo-indigo-600",
+  completed: "bg-signal-pulse-soft text-signal-pulse",
+  pending: "bg-signal-voucher-soft text-signal-voucher",
+  failed: "bg-signal-alert-soft text-signal-alert",
+  cancelled: "bg-signal-ink-faint/15 text-signal-ink-dim",
 };
 
 export default function TransactionsPage() {
@@ -39,19 +40,24 @@ export default function TransactionsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-2xl font-bold text-echo-ink">Payments</h1>
-        <p className="text-sm text-echo-muted">Every Pesapal order — STK push, card, or manual.</p>
+        <h1 className="text-2xl font-bold text-signal-ink">Payments</h1>
+        <p className="text-sm text-signal-ink-dim">Every Pesapal order — STK push, card, or manual.</p>
       </div>
 
       <div className="card">
         {transactions.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-10 text-center">
-            <img src="/doodle-empty.svg" alt="" className="h-32 w-32" />
-            <p className="text-sm text-echo-muted">No payments yet.</p>
-          </div>
+          <EmptyState
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-10 w-10">
+                <rect x="2.5" y="5" width="19" height="14" rx="2" />
+                <path d="M2.5 10h19" />
+              </svg>
+            }
+            message="No payments yet."
+          />
         ) : (
           <table className="w-full text-left text-sm">
-            <thead className="text-xs uppercase text-echo-muted">
+            <thead className="font-mono text-xs uppercase tracking-wide text-signal-ink-faint">
               <tr>
                 <th className="py-2 pr-4">Reference</th>
                 <th className="py-2 pr-4">Phone</th>
@@ -63,17 +69,17 @@ export default function TransactionsPage() {
             </thead>
             <tbody>
               {transactions.map((t) => (
-                <tr key={t.id} className="border-t border-echo-indigo-50">
-                  <td className="py-2 pr-4 font-mono text-xs">{t.pesapal_merchant_reference}</td>
+                <tr key={t.id} className="border-t border-signal-border">
+                  <td className="py-2 pr-4 font-mono text-xs text-signal-ink-dim">{t.pesapal_merchant_reference}</td>
                   <td className="py-2 pr-4">{t.phone ?? "—"}</td>
-                  <td className="py-2 pr-4 font-medium">
+                  <td className="py-2 pr-4 font-mono font-medium tabular-nums text-signal-ink">
                     {t.currency} {t.amount}
                   </td>
-                  <td className="py-2 pr-4 text-echo-muted">{t.method}</td>
+                  <td className="py-2 pr-4 text-signal-ink-dim">{t.method}</td>
                   <td className="py-2 pr-4">
                     <span className={`badge ${STATUS_STYLE[t.status]}`}>{t.status}</span>
                   </td>
-                  <td className="py-2 pr-4 text-echo-muted">{new Date(t.created_at).toLocaleString()}</td>
+                  <td className="py-2 pr-4 font-mono tabular-nums text-signal-ink-dim">{new Date(t.created_at).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>

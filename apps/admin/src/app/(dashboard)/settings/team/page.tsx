@@ -117,8 +117,8 @@ export default function TeamSettingsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-echo-ink">Team</h1>
-          <p className="text-sm text-echo-muted">
+          <h1 className="text-2xl font-bold text-signal-ink">Team</h1>
+          <p className="text-sm text-signal-ink-dim">
             {isOwner
               ? "Add staff accounts and manage who has owner access."
               : "Only owners can add or manage team members."}
@@ -161,18 +161,18 @@ export default function TeamSettingsPage() {
           <button type="submit" className="btn-primary" disabled={adding}>
             {adding ? "Adding…" : "Add"}
           </button>
-          {addError && <p className="w-full text-sm text-echo-coral-500">{addError}</p>}
+          {addError && <p className="w-full text-sm text-signal-alert">{addError}</p>}
         </form>
       )}
 
       {newCredentials && (
-        <div className="card flex flex-col gap-3 border-echo-mint-500/60 bg-echo-mint-50">
-          <h3 className="font-display text-lg font-bold">Account created</h3>
-          <p className="text-sm text-echo-muted">
+        <div className="card flex flex-col gap-3 border-signal-pulse/60 bg-signal-pulse-soft">
+          <h3 className="text-lg font-bold text-signal-ink">Account created</h3>
+          <p className="text-sm text-signal-ink-dim">
             Share this temporary password with <strong>{newCredentials.email}</strong> securely — it
             won&apos;t be shown again. They can change it from Settings &gt; Account after signing in.
           </p>
-          <code className="w-fit rounded-lg bg-white px-3 py-2 font-mono text-sm">
+          <code className="w-fit rounded-none border-2 border-signal-ink bg-signal-bg-elevated px-3 py-2 font-mono text-sm text-signal-ink">
             {newCredentials.tempPassword}
           </code>
           <button className="btn-secondary self-start" onClick={() => setNewCredentials(null)}>
@@ -181,14 +181,14 @@ export default function TeamSettingsPage() {
         </div>
       )}
 
-      {rowError && <p className="text-sm text-echo-coral-500">{rowError}</p>}
+      {rowError && <p className="text-sm text-signal-alert">{rowError}</p>}
 
       <div className="card">
         {loading ? (
-          <p className="py-6 text-center text-sm text-echo-muted">Loading…</p>
+          <p className="py-6 text-center text-sm text-signal-ink-dim">Loading…</p>
         ) : loadError ? (
           <div className="flex flex-col items-center gap-2 py-6 text-center">
-            <p className="text-sm text-echo-coral-500">{loadError}</p>
+            <p className="text-sm text-signal-alert">{loadError}</p>
             <button className="btn-secondary" onClick={load}>
               Retry
             </button>
@@ -197,7 +197,7 @@ export default function TeamSettingsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-echo-indigo-100/70 text-left text-echo-muted">
+                <tr className="border-b border-signal-border text-left text-signal-ink-dim">
                   <th className="pb-2 font-medium">Name</th>
                   <th className="pb-2 font-medium">Email</th>
                   <th className="pb-2 font-medium">Role</th>
@@ -207,9 +207,9 @@ export default function TeamSettingsPage() {
               </thead>
               <tbody>
                 {members.map((m) => (
-                  <tr key={m.id} className="border-b border-echo-indigo-100/40 last:border-0">
+                  <tr key={m.id} className="border-b border-signal-border last:border-0">
                     <td className="py-3">
-                      {m.full_name ?? "—"} {m.id === myId && <span className="text-echo-muted">(you)</span>}
+                      {m.full_name ?? "—"} {m.id === myId && <span className="text-signal-ink-dim">(you)</span>}
                     </td>
                     <td className="py-3">{m.email}</td>
                     <td className="py-3">
@@ -225,30 +225,30 @@ export default function TeamSettingsPage() {
                         </select>
                       ) : (
                         <span
-                          className={`badge ${m.role === "owner" ? "bg-echo-indigo-50 text-echo-indigo-600" : "bg-echo-amber-100/60 text-echo-amber-500"}`}
+                          className={`badge ${m.role === "owner" ? "bg-signal-brand-soft text-signal-brand" : "bg-signal-voucher-soft text-signal-voucher"}`}
                         >
                           {m.role}
                         </span>
                       )}
                     </td>
-                    <td className="py-3 text-echo-muted">
+                    <td className="py-3 font-mono tabular-nums text-signal-ink-dim">
                       {new Date(m.created_at).toLocaleDateString()}
                     </td>
                     {isOwner && (
                       <td className="py-3">
                         {m.id === myId ? (
-                          <span className="text-echo-muted">—</span>
+                          <span className="text-signal-ink-dim">—</span>
                         ) : confirmRemoveId === m.id ? (
                           <span className="flex items-center gap-2">
                             <button
-                              className="text-sm font-medium text-echo-coral-500"
+                              className="text-sm font-medium text-signal-alert"
                               disabled={busyId === m.id}
                               onClick={() => handleRemove(m.id)}
                             >
                               Confirm
                             </button>
                             <button
-                              className="text-sm font-medium text-echo-muted"
+                              className="text-sm font-medium text-signal-ink-dim"
                               onClick={() => setConfirmRemoveId(null)}
                             >
                               Cancel
@@ -256,7 +256,7 @@ export default function TeamSettingsPage() {
                           </span>
                         ) : (
                           <button
-                            className="text-sm font-medium text-echo-coral-500 hover:underline"
+                            className="text-sm font-medium text-signal-alert hover:underline"
                             onClick={() => setConfirmRemoveId(m.id)}
                           >
                             Remove

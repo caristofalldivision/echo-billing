@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Customer, PppoeAccount } from "@/lib/supabase/types";
+import { EmptyState } from "@/components/EmptyState";
 
 export default function CustomersPage() {
   const supabase = createClient();
@@ -28,19 +29,24 @@ export default function CustomersPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-2xl font-bold text-echo-ink">Customers</h1>
-        <p className="text-sm text-echo-muted">Everyone who has paid through Echo, hotspot and PPPoE.</p>
+        <h1 className="text-2xl font-bold text-signal-ink">Customers</h1>
+        <p className="text-sm text-signal-ink-dim">Everyone who has paid through Echo, hotspot and PPPoE.</p>
       </div>
 
       <div className="card">
         {customers.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-10 text-center">
-            <img src="/doodle-empty.svg" alt="" className="h-32 w-32" />
-            <p className="text-sm text-echo-muted">No customers yet.</p>
-          </div>
+          <EmptyState
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-10 w-10">
+                <circle cx="9" cy="8" r="3.25" />
+                <path d="M3.5 19c1-3.2 3.3-4.8 5.5-4.8s4.5 1.6 5.5 4.8" />
+              </svg>
+            }
+            message="No customers yet."
+          />
         ) : (
           <table className="w-full text-left text-sm">
-            <thead className="text-xs uppercase text-echo-muted">
+            <thead className="font-mono text-xs uppercase tracking-wide text-signal-ink-faint">
               <tr>
                 <th className="py-2 pr-4">Name</th>
                 <th className="py-2 pr-4">Phone</th>
@@ -53,14 +59,14 @@ export default function CustomersPage() {
               {customers.map((c) => {
                 const account = pppoeByCustomer[c.id];
                 return (
-                  <tr key={c.id} className="border-t border-echo-indigo-50">
-                    <td className="py-2 pr-4 font-medium">{c.full_name ?? "—"}</td>
+                  <tr key={c.id} className="border-t border-signal-border">
+                    <td className="py-2 pr-4 font-medium text-signal-ink">{c.full_name ?? "—"}</td>
                     <td className="py-2 pr-4">{c.phone}</td>
-                    <td className="py-2 pr-4 text-echo-muted">{c.email ?? "—"}</td>
+                    <td className="py-2 pr-4 text-signal-ink-dim">{c.email ?? "—"}</td>
                     <td className="py-2 pr-4">
-                      <span className="badge bg-echo-indigo-100 text-echo-indigo-700">{c.type}</span>
+                      <span className="badge bg-signal-brand-soft text-signal-brand">{c.type}</span>
                     </td>
-                    <td className="py-2 pr-4 text-echo-muted">
+                    <td className="py-2 pr-4 text-signal-ink-dim">
                       {account ? `${account.status} · expires ${account.expires_at ? new Date(account.expires_at).toLocaleDateString() : "—"}` : "—"}
                     </td>
                   </tr>

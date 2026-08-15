@@ -51,8 +51,8 @@ export default function AccountSettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-2xl font-bold text-echo-ink">Account</h1>
-        <p className="text-sm text-echo-muted">Your sign-in details.</p>
+        <h1 className="text-2xl font-bold text-signal-ink">Account</h1>
+        <p className="text-sm text-signal-ink-dim">Your sign-in details.</p>
       </div>
 
       <div className="card flex max-w-lg flex-col gap-4">
@@ -61,7 +61,7 @@ export default function AccountSettingsPage() {
           <input className="input" value={email ?? ""} disabled />
         </div>
 
-        <form onSubmit={handleSave} className="flex flex-col gap-4 border-t border-echo-indigo-100/70 pt-4">
+        <form onSubmit={handleSave} className="flex flex-col gap-4 border-t border-signal-border pt-4">
           <p className="text-sm font-medium">Change password</p>
           <div>
             <label className="mb-1 block text-sm font-medium">New password</label>
@@ -83,7 +83,7 @@ export default function AccountSettingsPage() {
               onChange={(e) => setConfirmPassword(e.target.value)}
             />
           </div>
-          {error && <p className="text-sm text-echo-coral-500">{error}</p>}
+          {error && <p className="text-sm text-signal-alert">{error}</p>}
           <button type="submit" className="btn-primary self-start" disabled={saving || !newPassword}>
             {saving ? "Saving…" : saved ? "Saved ✓" : "Update password"}
           </button>

@@ -6,8 +6,10 @@
   "scripts": {
     "dev:admin": "pnpm --filter echo-admin dev",
     "dev:portal": "pnpm --filter echo-captive-portal dev",
+    "dev:landing": "pnpm --filter echo-landing dev",
     "build:admin": "pnpm --filter echo-admin build",
     "build:portal": "pnpm --filter echo-captive-portal build",
+    "build:landing": "pnpm --filter echo-landing build",
     "supabase:start": "supabase start",
     "supabase:functions:serve": "supabase functions serve"
   },

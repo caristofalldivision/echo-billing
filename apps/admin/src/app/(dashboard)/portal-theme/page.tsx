@@ -70,8 +70,8 @@ export default function PortalThemePage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-2xl font-bold text-echo-ink">Captive portal</h1>
-        <p className="text-sm text-echo-muted">Customize the page customers see when they join your WiFi.</p>
+        <h1 className="text-2xl font-bold text-signal-ink">Captive portal</h1>
+        <p className="text-sm text-signal-ink-dim">Customize the page customers see when they join your WiFi.</p>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -79,14 +79,14 @@ export default function PortalThemePage() {
           <div>
             <label className="mb-1 block text-sm font-medium">Logo</label>
             <input type="file" accept="image/*" onChange={handleLogoUpload} className="text-sm" />
-            {uploading && <p className="mt-1 text-xs text-echo-muted">Uploading…</p>}
+            {uploading && <p className="mt-1 text-xs text-signal-ink-dim">Uploading…</p>}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-sm font-medium">Primary color</label>
               <input
                 type="color"
-                className="h-10 w-full rounded-lg border border-echo-indigo-100"
+                className="h-10 w-full rounded-none border-2 border-signal-border"
                 value={theme.primary_color}
                 onChange={(e) => setTheme({ ...theme, primary_color: e.target.value })}
               />
@@ -95,7 +95,7 @@ export default function PortalThemePage() {
               <label className="mb-1 block text-sm font-medium">Accent color</label>
               <input
                 type="color"
-                className="h-10 w-full rounded-lg border border-echo-indigo-100"
+                className="h-10 w-full rounded-none border-2 border-signal-border"
                 value={theme.secondary_color}
                 onChange={(e) => setTheme({ ...theme, secondary_color: e.target.value })}
               />
@@ -146,14 +146,14 @@ export default function PortalThemePage() {
           <button className="btn-primary self-start" onClick={handleSave} disabled={saving}>
             {saving ? "Saving…" : "Save theme"}
           </button>
-          <p className="text-xs text-echo-muted">
+          <p className="text-xs text-signal-ink-dim">
             After saving, rebuild &amp; re-push the captive portal bundle from{" "}
             <code>apps/captive-portal</code> so routers pick up the change on next provisioning refresh.
           </p>
         </div>
 
         <div>
-          <p className="mb-2 text-sm font-medium text-echo-muted">Live preview</p>
+          <p className="mb-2 text-sm font-medium text-signal-ink-dim">Live preview</p>
           <div
             className="flex aspect-[9/16] w-full max-w-sm flex-col items-center justify-center gap-4 overflow-hidden rounded-echo p-8 text-center shadow-echo"
             style={{ backgroundColor: "#FAF9F4" }}

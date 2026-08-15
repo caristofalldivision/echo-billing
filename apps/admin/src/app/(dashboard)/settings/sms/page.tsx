@@ -45,8 +45,8 @@ export default function SmsSettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-2xl font-bold text-echo-ink">SMS — TalkSasa</h1>
-        <p className="text-sm text-echo-muted">Voucher codes, payment receipts, and expiry reminders.</p>
+        <h1 className="text-2xl font-bold text-signal-ink">SMS — TalkSasa</h1>
+        <p className="text-sm text-signal-ink-dim">Voucher codes, payment receipts, and expiry reminders.</p>
       </div>
 
       <form onSubmit={handleSave} className="card flex max-w-lg flex-col gap-4">
@@ -64,7 +64,7 @@ export default function SmsSettingsPage() {
       </form>
 
       <div className="card flex max-w-lg flex-col gap-3">
-        <h2 className="font-display text-lg font-bold">Send a test message</h2>
+        <h2 className="text-lg font-bold text-signal-ink">Send a test message</h2>
         <div className="flex gap-3">
           <input
             className="input"
@@ -76,7 +76,7 @@ export default function SmsSettingsPage() {
             Send test
           </button>
         </div>
-        {testStatus && <p className="text-sm text-echo-muted">{testStatus}</p>}
+        {testStatus && <p className="text-sm text-signal-ink-dim">{testStatus}</p>}
       </div>
     </div>
   );

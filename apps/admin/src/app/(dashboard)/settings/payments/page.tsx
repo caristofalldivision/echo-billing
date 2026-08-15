@@ -44,8 +44,8 @@ export default function PaymentsSettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-2xl font-bold text-echo-ink">Payments — Pesapal</h1>
-        <p className="text-sm text-echo-muted">Used for card payments and M-Pesa STK push.</p>
+        <h1 className="text-2xl font-bold text-signal-ink">Payments — Pesapal</h1>
+        <p className="text-sm text-signal-ink-dim">Used for card payments and M-Pesa STK push.</p>
       </div>
 
       <form onSubmit={handleSave} className="card flex max-w-lg flex-col gap-4">
@@ -72,7 +72,7 @@ export default function PaymentsSettingsPage() {
         <button type="submit" className="btn-primary self-start" disabled={saving}>
           {saving ? "Saving…" : saved ? "Saved ✓" : "Save"}
         </button>
-        <p className="text-xs text-echo-muted">
+        <p className="text-xs text-signal-ink-dim">
           Find these in your Pesapal merchant dashboard under API Keys. The IPN endpoint is registered
           automatically on the first order.
         </p>

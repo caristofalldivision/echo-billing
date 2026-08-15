@@ -1,0 +1,88 @@
+/**
+ * Echo Signal — De Stijl / Neoplasticism tokens for apps/admin and
+ * apps/landing. Distinct from @echo/doodles, which stays the customer-
+ * facing captive portal identity.
+ *
+ * Flat primary colors, black rule lines, sharp corners, no shadows or
+ * blur — depth comes from borders and color blocks, not elevation.
+ * Three-state theming: bare :root is light, the media query covers the
+ * unstamped "system" default, [data-theme] forces either side.
+ */
+
+:root {
+  --signal-bg: #ffffff;
+  --signal-bg-elevated: #ffffff;
+  --signal-panel: #ffffff;
+  --signal-panel-solid: #ffffff;
+  --signal-panel-border: #000000;
+  --signal-ink: #000000;
+  --signal-ink-dim: #4a4a4a;
+  --signal-ink-faint: #808080;
+
+  --signal-brand: #0000ff;
+  --signal-brand-strong: #0000cc;
+  --signal-brand-soft: #e5e5ff;
+  --signal-pulse: #0000ff;
+  --signal-pulse-soft: #e5e5ff;
+  --signal-voucher: #ffd500;
+  --signal-voucher-soft: #fff6cc;
+  --signal-alert: #ff0000;
+  --signal-alert-soft: #ffe0e0;
+
+  /* Chrome: deliberately constant across themes — instrument-panel
+     identity (sidebar, hero bands), not content. */
+  --signal-chrome-bg: #000000;
+  --signal-chrome-bg-2: #0d0d0d;
+  --signal-chrome-panel: #1a1a1a;
+  --signal-chrome-ink: #ffffff;
+  --signal-chrome-ink-dim: #b3b3b3;
+  --signal-chrome-border: #ffffff;
+  --signal-chrome-brand: #3d5bff;
+  --signal-chrome-pulse: #3d5bff;
+  --signal-chrome-voucher: #ffd500;
+  --signal-chrome-alert: #ff4d4d;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --signal-bg: #000000;
+    --signal-bg-elevated: #0d0d0d;
+    --signal-panel: #000000;
+    --signal-panel-solid: #0d0d0d;
+    --signal-panel-border: #ffffff;
+    --signal-ink: #ffffff;
+    --signal-ink-dim: #b3b3b3;
+    --signal-ink-faint: #808080;
+
+    --signal-brand: #3d5bff;
+    --signal-brand-strong: #5c76ff;
+    --signal-brand-soft: #10143a;
+    --signal-pulse: #3d5bff;
+    --signal-pulse-soft: #10143a;
+    --signal-voucher: #ffd500;
+    --signal-voucher-soft: #3a3110;
+    --signal-alert: #ff4d4d;
+    --signal-alert-soft: #3a1010;
+  }
+}
+
+:root[data-theme="dark"] {
+  --signal-bg: #000000;
+  --signal-bg-elevated: #0d0d0d;
+  --signal-panel: #000000;
+  --signal-panel-solid: #0d0d0d;
+  --signal-panel-border: #ffffff;
+  --signal-ink: #ffffff;
+  --signal-ink-dim: #b3b3b3;
+  --signal-ink-faint: #808080;
+
+  --signal-brand: #3d5bff;
+  --signal-brand-strong: #5c76ff;
+  --signal-brand-soft: #10143a;
+  --signal-pulse: #3d5bff;
+  --signal-pulse-soft: #10143a;
+  --signal-voucher: #ffd500;
+  --signal-voucher-soft: #3a3110;
+  --signal-alert: #ff4d4d;
+  --signal-alert-soft: #3a1010;
+}

@@ -87,22 +87,22 @@ export default function SignupPage() {
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
           <img src="/logo-mark.svg" alt="Echo" className="h-14 w-14" />
-          <h1 className="font-display text-2xl font-bold text-echo-ink">Echo</h1>
-          <p className="text-sm text-echo-muted">Set up your billing admin portal</p>
+          <h1 className="font-mono text-2xl font-bold text-signal-ink">Echo</h1>
+          <p className="text-sm text-signal-ink-dim">Set up your billing admin portal</p>
         </div>
 
         {checking ? (
-          <div className="card text-center text-sm text-echo-muted">Checking setup status…</div>
+          <div className="card text-center text-sm text-signal-ink-dim">Checking setup status…</div>
         ) : checkError ? (
           <div className="card flex flex-col gap-3 text-center">
-            <p className="text-sm text-echo-coral-500">{checkError}</p>
+            <p className="text-sm text-signal-alert">{checkError}</p>
             <button className="btn-secondary self-center" onClick={checkOrgExists}>
               Retry
             </button>
           </div>
         ) : orgExists ? (
           <div className="card flex flex-col gap-3 text-center">
-            <p className="text-sm text-echo-muted">
+            <p className="text-sm text-signal-ink-dim">
               This Echo instance is already set up. Ask your administrator for an account.
             </p>
             <Link href="/login" className="btn-primary">
@@ -164,13 +164,13 @@ export default function SignupPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
               />
             </div>
-            {error && <p className="text-sm text-echo-coral-500">{error}</p>}
+            {error && <p className="text-sm text-signal-alert">{error}</p>}
             <button type="submit" className="btn-primary mt-2" disabled={loading}>
               {loading ? "Setting up…" : "Create organization"}
             </button>
-            <p className="text-center text-xs text-echo-muted">
+            <p className="text-center text-xs text-signal-ink-dim">
               Already set up?{" "}
-              <Link href="/login" className="font-medium text-echo-indigo-500">
+              <Link href="/login" className="font-medium text-signal-brand">
                 Sign in
               </Link>
             </p>

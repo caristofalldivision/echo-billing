@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Plan, Voucher } from "@/lib/supabase/types";
+import { EmptyState } from "@/components/EmptyState";
 
 export default function VouchersPage() {
   const supabase = createClient();
@@ -44,8 +45,8 @@ export default function VouchersPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-2xl font-bold text-echo-ink">Vouchers</h1>
-        <p className="text-sm text-echo-muted">Generate printable hotspot access codes in batches.</p>
+        <h1 className="text-2xl font-bold text-signal-ink">Vouchers</h1>
+        <p className="text-sm text-signal-ink-dim">Generate printable hotspot access codes in batches.</p>
       </div>
 
       <form onSubmit={handleGenerate} className="card flex flex-wrap items-end gap-4">
@@ -80,7 +81,7 @@ export default function VouchersPage() {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`badge ${filter === f ? "bg-echo-indigo-500 text-white" : "bg-echo-indigo-50 text-echo-indigo-600"}`}
+            className={`badge ${filter === f ? "bg-signal-brand text-white" : "bg-signal-brand-soft text-signal-brand"}`}
           >
             {f}
           </button>
@@ -89,20 +90,25 @@ export default function VouchersPage() {
 
       <div className="card">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-10 text-center">
-            <img src="/doodle-voucher.svg" alt="" className="h-28 w-40" />
-            <p className="text-sm text-echo-muted">No vouchers yet — generate your first batch above.</p>
-          </div>
+          <EmptyState
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-10 w-10">
+                <path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4V8Z" />
+                <path d="M10 6v12" strokeDasharray="2 2" />
+              </svg>
+            }
+            message="No vouchers yet — generate your first batch above."
+          />
         ) : (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {filtered.map((v) => (
               <div
                 key={v.id}
-                className="rounded-xl border border-dashed border-echo-amber-500/60 bg-echo-amber-100/40 px-3 py-2 text-center"
+                className="rounded-none border-2 border-dashed border-signal-voucher bg-signal-voucher-soft px-3 py-2 text-center"
               >
-                <div className="font-mono text-sm font-bold tracking-wide">{v.code}</div>
+                <div className="font-mono text-sm font-bold tracking-wide text-signal-ink">{v.code}</div>
                 <div
-                  className={`mt-1 text-xs font-medium ${v.status === "unused" ? "text-echo-mint-500" : "text-echo-muted"}`}
+                  className={`mt-1 text-xs font-medium ${v.status === "unused" ? "text-signal-pulse" : "text-signal-ink-dim"}`}
                 >
                   {v.status}
                 </div>

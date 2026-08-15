@@ -52,8 +52,8 @@ export default function EmailSettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-2xl font-bold text-echo-ink">Email — Resend</h1>
-        <p className="text-sm text-echo-muted">Payment receipts and account notices.</p>
+        <h1 className="text-2xl font-bold text-signal-ink">Email — Resend</h1>
+        <p className="text-sm text-signal-ink-dim">Payment receipts and account notices.</p>
       </div>
 
       <form onSubmit={handleSave} className="card flex max-w-lg flex-col gap-4">
@@ -72,13 +72,13 @@ export default function EmailSettingsPage() {
         <button type="submit" className="btn-primary self-start" disabled={saving}>
           {saving ? "Saving…" : "Save"}
         </button>
-        <p className="text-xs text-echo-muted">
+        <p className="text-xs text-signal-ink-dim">
           The from-email domain must be verified in your Resend dashboard before sends will succeed.
         </p>
       </form>
 
       <div className="card flex max-w-lg flex-col gap-3">
-        <h2 className="font-display text-lg font-bold">Send a test email</h2>
+        <h2 className="text-lg font-bold text-signal-ink">Send a test email</h2>
         <div className="flex gap-3">
           <input
             className="input"
@@ -90,7 +90,7 @@ export default function EmailSettingsPage() {
             Send test
           </button>
         </div>
-        {testStatus && <p className="text-sm text-echo-muted">{testStatus}</p>}
+        {testStatus && <p className="text-sm text-signal-ink-dim">{testStatus}</p>}
       </div>
     </div>
   );

@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import "@echo/signal/globals.css";
+
+body {
+  background-color: var(--signal-bg);
+  color: var(--signal-ink);
+  font-family: theme("fontFamily.sans");
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-2 border-2 px-6 py-3 text-sm font-bold transition;
+}
+
+.btn-primary {
+  @apply btn border-signal-chrome-ink bg-signal-chrome-brand text-white hover:bg-signal-chrome-ink;
+}
+
+.btn-yellow {
+  @apply btn border-signal-chrome-ink bg-signal-chrome-voucher text-black hover:bg-signal-chrome-ink hover:text-signal-chrome-voucher;
+}
+
+.btn-outline {
+  @apply btn border-signal-chrome-ink bg-transparent text-signal-chrome-ink hover:bg-signal-chrome-ink hover:text-black;
+}
+
+.chip {
+  @apply inline-flex items-center gap-2 border-2 border-signal-chrome-border px-4 py-2 font-mono text-[0.8rem] font-bold text-signal-chrome-ink;
+}

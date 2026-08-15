@@ -48,8 +48,8 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
           <img src="/logo-mark.svg" alt="Echo" className="h-14 w-14" />
-          <h1 className="font-display text-2xl font-bold text-echo-ink">Echo</h1>
-          <p className="text-sm text-echo-muted">Sign in to your billing admin portal</p>
+          <h1 className="font-mono text-2xl font-bold text-signal-ink">Echo</h1>
+          <p className="text-sm text-signal-ink-dim">Sign in to your billing admin portal</p>
         </div>
 
         <form onSubmit={handleSubmit} className="card flex flex-col gap-4">
@@ -75,9 +75,9 @@ export default function LoginPage() {
               placeholder="••••••••"
             />
           </div>
-          {error && <p className="text-sm text-echo-coral-500">{error}</p>}
+          {error && <p className="text-sm text-signal-alert">{error}</p>}
           {resetSent && (
-            <p className="text-sm text-echo-mint-500">
+            <p className="text-sm text-signal-pulse">
               If an account exists for that email, a reset link is on its way.
             </p>
           )}
@@ -86,7 +86,7 @@ export default function LoginPage() {
           </button>
           <button
             type="button"
-            className="text-center text-xs font-medium text-echo-indigo-500"
+            className="text-center text-xs font-medium text-signal-brand"
             onClick={handleForgotPassword}
             disabled={resetting}
           >
@@ -94,9 +94,9 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="mt-4 text-center text-xs text-echo-muted">
+        <p className="mt-4 text-center text-xs text-signal-ink-dim">
           Setting up Echo for the first time?{" "}
-          <Link href="/signup" className="font-medium text-echo-indigo-500">
+          <Link href="/signup" className="font-medium text-signal-brand">
             Create an account
           </Link>
         </p>

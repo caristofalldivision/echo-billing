@@ -2,40 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url("https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Inter:wght@400;500;600&display=swap");
+@import "@echo/signal/globals.css";
 
 body {
-  background-color: #faf9f4;
-  color: #1e1b2e;
-  font-family: "Inter", "Segoe UI", sans-serif;
-  background-image: radial-gradient(#e0e1fd 1px, transparent 1px);
-  background-size: 24px 24px;
-}
-
-.font-display {
-  font-family: "Baloo 2", "Segoe UI", sans-serif;
+  background-color: var(--signal-bg);
+  color: var(--signal-ink);
+  font-family: theme("fontFamily.sans");
 }
 
 .card {
-  @apply bg-white rounded-echo shadow-echo border border-echo-indigo-100/60 p-6;
+  @apply bg-signal-surface rounded-glass border-2 border-signal-border p-6;
 }
 
 .stat-tile {
-  @apply card flex flex-col gap-1;
+  @apply card flex flex-col gap-1.5;
 }
 
 .btn-primary {
-  @apply inline-flex items-center justify-center gap-2 rounded-full bg-echo-indigo-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-echo-indigo-600 disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-chip border-2 border-signal-ink bg-signal-brand px-5 py-2.5 text-sm font-bold text-white transition hover:bg-signal-brand-strong disabled:opacity-50;
 }
 
 .btn-secondary {
-  @apply inline-flex items-center justify-center gap-2 rounded-full border border-echo-indigo-200 bg-white px-5 py-2.5 text-sm font-semibold text-echo-indigo-600 transition hover:bg-echo-indigo-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-chip border-2 border-signal-ink bg-signal-surface px-5 py-2.5 text-sm font-bold text-signal-ink transition hover:bg-signal-ink hover:text-signal-bg;
 }
 
 .input {
-  @apply w-full rounded-xl border border-echo-indigo-100 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-echo-indigo-400 focus:ring-2 focus:ring-echo-indigo-100;
+  @apply w-full rounded-tight border-2 border-signal-border bg-signal-bg-elevated px-3.5 py-2.5 text-sm text-signal-ink outline-none transition focus:border-signal-brand;
 }
 
 .badge {
-  @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold;
+  @apply inline-flex items-center rounded-chip border-2 border-signal-ink px-2.5 py-1 text-xs font-bold font-mono uppercase tracking-wide;
 }

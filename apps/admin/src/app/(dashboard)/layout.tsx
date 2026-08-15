@@ -22,9 +22,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   if (user && !hasAccess) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 text-center">
-        <h1 className="font-display text-xl font-bold text-echo-ink">No access yet</h1>
-        <p className="max-w-sm text-sm text-echo-muted">
+      <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-signal-bg px-4 text-center text-signal-ink">
+        <h1 className="text-xl font-bold">No access yet</h1>
+        <p className="max-w-sm text-sm text-signal-ink-dim">
           Your account ({user.email}) isn&apos;t linked to an organization. Ask your admin to add you
           from Settings &gt; Team, or sign out and try a different account.
         </p>
@@ -34,13 +34,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-signal-bg">
       <Sidebar />
       <div className="flex-1">
-        <header className="flex items-center justify-between border-b border-echo-indigo-100/70 bg-white/60 px-8 py-4 backdrop-blur">
+        <header className="flex items-center justify-between border-b-2 border-signal-border bg-signal-surface px-8 py-4">
           <div />
           <div className="flex items-center gap-4">
-            <span className="text-sm text-echo-muted">{fullName}</span>
+            <span className="text-sm text-signal-ink-dim">{fullName}</span>
             <SignOutButton />
           </div>
         </header>

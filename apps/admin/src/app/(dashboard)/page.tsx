@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { ActiveSession, Transaction } from "@/lib/supabase/types";
 import { StatTile } from "@/components/StatTile";
+import { EmptyState } from "@/components/EmptyState";
 
 export default function DashboardPage() {
   const supabase = createClient();
@@ -67,25 +68,32 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-2xl font-bold text-echo-ink">Dashboard</h1>
-        <p className="text-sm text-echo-muted">Live view of your network, right now.</p>
+        <h1 className="text-2xl font-bold text-signal-ink">Dashboard</h1>
+        <p className="text-sm text-signal-ink-dim">Live view of your network, right now.</p>
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatTile label="Active sessions" value={sessions.length} accent="indigo" />
-        <StatTile label="Revenue today" value={`KES ${revenueToday.toLocaleString()}`} accent="mint" />
-        <StatTile label="Unused vouchers" value={vouchersUnused} accent="amber" />
-        <StatTile label="MikroTiks linked" value={devicesLinked} accent="indigo" />
+        <StatTile label="Active sessions" value={sessions.length} accent="pulse" />
+        <StatTile label="Revenue today" value={`KES ${revenueToday.toLocaleString()}`} accent="brand" />
+        <StatTile label="Unused vouchers" value={vouchersUnused} accent="voucher" />
+        <StatTile label="MikroTiks linked" value={devicesLinked} accent="brand" />
       </div>
 
       <div className="card">
-        <h2 className="mb-4 font-display text-lg font-bold">Active sessions</h2>
+        <h2 className="mb-4 text-lg font-bold text-signal-ink">Active sessions</h2>
         {sessions.length === 0 ? (
-          <EmptyState />
+          <EmptyState
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-10 w-10">
+                <path d="M3 12h4l2.5 7L14 4l2 8h5" />
+              </svg>
+            }
+            message="No one's online yet — once a customer connects, they'll show up here live."
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="text-xs uppercase text-echo-muted">
+              <thead className="font-mono text-xs uppercase tracking-wide text-signal-ink-faint">
                 <tr>
                   <th className="py-2 pr-4">User</th>
                   <th className="py-2 pr-4">Type</th>
@@ -96,18 +104,20 @@ export default function DashboardPage() {
               </thead>
               <tbody>
                 {sessions.map((s) => (
-                  <tr key={s.id} className="border-t border-echo-indigo-50">
-                    <td className="py-2 pr-4 font-medium">{s.username}</td>
+                  <tr key={s.id} className="border-t border-signal-border">
+                    <td className="py-2 pr-4 font-medium text-signal-ink">{s.username}</td>
                     <td className="py-2 pr-4">
-                      <span className="badge bg-echo-indigo-100 text-echo-indigo-700">
+                      <span className="badge bg-signal-brand-soft text-signal-brand">
                         {s.session_type}
                       </span>
                     </td>
-                    <td className="py-2 pr-4 text-echo-muted">{s.framed_ip ?? "—"}</td>
-                    <td className="py-2 pr-4 text-echo-muted">
+                    <td className="py-2 pr-4 font-mono tabular-nums text-signal-ink-dim">
+                      {s.framed_ip ?? "—"}
+                    </td>
+                    <td className="py-2 pr-4 font-mono tabular-nums text-signal-ink-dim">
                       {new Date(s.session_start).toLocaleTimeString()}
                     </td>
-                    <td className="py-2 pr-4 text-echo-muted">
+                    <td className="py-2 pr-4 font-mono tabular-nums text-signal-ink-dim">
                       {(((s.bytes_in ?? 0) + (s.bytes_out ?? 0)) / 1_000_000).toFixed(1)} MB
                     </td>
                   </tr>
@@ -117,15 +127,6 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center gap-3 py-10 text-center">
-      <img src="/doodle-empty.svg" alt="" className="h-32 w-32" />
-      <p className="text-sm text-echo-muted">No one&apos;s online yet — once a customer connects, they&apos;ll show up here live.</p>
     </div>
   );
 }
