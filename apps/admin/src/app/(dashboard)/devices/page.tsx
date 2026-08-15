@@ -22,6 +22,8 @@ export default function DevicesPage() {
   const [site, setSite] = useState("");
   const [scriptFor, setScriptFor] = useState<string | null>(null);
   const [script, setScript] = useState("");
+  const [bootstrap, setBootstrap] = useState("");
+  const [showFullScript, setShowFullScript] = useState(false);
   const [loadingScript, setLoadingScript] = useState(false);
   const [scriptError, setScriptError] = useState<string | null>(null);
   const [confirmRegenerateId, setConfirmRegenerateId] = useState<string | null>(null);
@@ -84,6 +86,8 @@ export default function DevicesPage() {
       return;
     }
     setScript(data.script);
+    setBootstrap(data.bootstrap ?? "");
+    setShowFullScript(false);
     load();
   }
 
@@ -195,19 +199,52 @@ export default function DevicesPage() {
               Close
             </button>
           </div>
-          <p className="mb-3 text-sm text-signal-ink-dim">
-            Paste this into a New Terminal on the router (or import as .rsc). It sets up the WireGuard
-            tunnel, RADIUS, hotspot/PPPoE profiles, walled garden, and pulls the captive portal — one time, no follow-up needed.
-          </p>
           {loadingScript ? (
             <p className="text-sm text-signal-ink-dim">Generating…</p>
           ) : (
-            <textarea
-              readOnly
-              className="input h-80 font-mono text-xs"
-              value={script}
-              onFocus={(e) => e.currentTarget.select()}
-            />
+            <div className="flex flex-col gap-4">
+              <div>
+                <p className="mb-2 text-sm text-signal-ink-dim">
+                  Paste these two lines into a New Terminal on the router. It sets up the WireGuard
+                  tunnel, hotspot network (bridge, DHCP, wireless), RADIUS, walled garden, and pulls the
+                  captive portal — one time, no follow-up needed. Pasting the full script directly tends
+                  to get corrupted on long lines in WinBox&apos;s terminal, which is why this fetches it as a
+                  file instead.
+                </p>
+                <textarea
+                  readOnly
+                  className="input h-20 font-mono text-xs"
+                  value={bootstrap}
+                  onFocus={(e) => e.currentTarget.select()}
+                />
+              </div>
+
+              <div className="rounded-tight border border-signal-border bg-signal-voucher-soft p-3 text-xs text-signal-ink-dim">
+                <p className="mb-1 font-bold text-signal-ink">If it doesn&apos;t show &quot;linked&quot; within ~5 minutes:</p>
+                <ul className="ml-4 list-disc space-y-0.5">
+                  <li>Check <code>/system ntp client print</code> — if the clock never synced, HTTPS fetches fail silently.</li>
+                  <li>Check <code>/interface wireguard peers print</code> — look for a recent handshake.</li>
+                  <li>Check <code>/ip hotspot print</code> and <code>/ip dhcp-server print</code> exist and aren&apos;t disabled.</li>
+                  <li>Confirm ether1 is really your WAN port on this hardware — everything else gets bridged into the hotspot.</li>
+                </ul>
+              </div>
+
+              <button
+                type="button"
+                className="self-start text-sm font-medium text-signal-brand"
+                onClick={() => setShowFullScript((v) => !v)}
+              >
+                {showFullScript ? "Hide full script" : "Show full script (manual import)"}
+              </button>
+              {showFullScript && (
+                <textarea
+                  readOnly
+                  className="input h-80 font-mono text-xs"
+                  value={script}
+                  onFocus={(e) => e.currentTarget.select()}
+                />
+              )}
+            </div>
           )}
         </div>
       )}

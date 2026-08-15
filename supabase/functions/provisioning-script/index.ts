@@ -3,7 +3,7 @@
 // Requires a Supabase auth JWT.
 import { handlePreflight, withCors } from "../_shared/cors.ts";
 import { supabaseAdmin, getOrgSettings } from "../_shared/supabase.ts";
-import { renderRouterScript } from "../_shared/router-template.ts";
+import { renderBootstrapScript, renderRouterScript } from "../_shared/router-template.ts";
 import nacl from "npm:tweetnacl@1";
 
 function b64(bytes: Uint8Array) {
@@ -88,6 +88,8 @@ Deno.serve(async (req) => {
     };
     await supabase.from("mikrotik_devices").update(updated).eq("id", device.id);
 
+    const functionsBaseUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1`;
+
     const script = renderRouterScript({
       deviceId: device.id,
       deviceName: device.name,
@@ -101,10 +103,12 @@ Deno.serve(async (req) => {
       mikrotikApiUsername,
       mikrotikApiPassword,
       captivePortalBaseUrl: `${Deno.env.get("SUPABASE_URL")}/storage/v1/object/public/captive-portal-builds`,
-      functionsBaseUrl: `${Deno.env.get("SUPABASE_URL")}/functions/v1`,
+      functionsBaseUrl,
     });
 
-    return withCors({ script });
+    const bootstrap = renderBootstrapScript(functionsBaseUrl, device.provisioning_token);
+
+    return withCors({ script, bootstrap });
   } catch (err) {
     return withCors({ error: (err as Error).message }, { status: 500 });
   }
