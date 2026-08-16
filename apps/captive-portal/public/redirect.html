@@ -1,0 +1,11 @@
+<html><head><title>Redirecting...</title>
+<script language="JavaScript"><!--
+location.replace("$(link-login-only)?dst=$(link-orig-esc)&popup=$(popup)");
+// --></script>
+</head><body>
+<form name="redirect" action="$(link-login-only)" method="post">
+<input type="hidden" name="dst" value="$(link-orig)">
+<input type="hidden" name="popup" value="$(popup)">
+<noscript><input type="submit" value="Continue"></noscript>
+</form>
+</body></html>

@@ -135,6 +135,7 @@ set use-radius=yes accounting=yes interim-update=5m
 
 # --- 9. Captive portal files — fetched onto the router itself ----------
 /tool fetch url="{{CAPTIVE_PORTAL_BASE_URL}}/login.html" dst-path="hotspot/login.html" mode=https
+/tool fetch url="{{CAPTIVE_PORTAL_BASE_URL}}/redirect.html" dst-path="hotspot/redirect.html" mode=https
 /tool fetch url="{{CAPTIVE_PORTAL_BASE_URL}}/assets/app.css" dst-path="hotspot/assets/app.css" mode=https
 /tool fetch url="{{CAPTIVE_PORTAL_BASE_URL}}/assets/app.js" dst-path="hotspot/assets/app.js" mode=https
 /tool fetch url="{{CAPTIVE_PORTAL_BASE_URL}}/assets/logo.svg" dst-path="hotspot/assets/logo.svg" mode=https

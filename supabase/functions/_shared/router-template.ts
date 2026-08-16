@@ -16,6 +16,13 @@
 // substitute $(link-login-only)/$(link-orig)/etc. template variables.
 export const CAPTIVE_PORTAL_FILES = [
   "login.html",
+  // MikroTik's hotspot serves login.html directly for the /login route,
+  // but relies on redirect.html to capture an arbitrary unauthenticated
+  // request (e.g. a client just browsing to any site) and forward it to
+  // /login with the original destination preserved. Without this file,
+  // hotspot returns a bare 404 for anything except the literal /login
+  // path — the login page itself works, nothing ever gets sent to it.
+  "redirect.html",
   "assets/app.css",
   "assets/app.js",
   "assets/logo.svg",
