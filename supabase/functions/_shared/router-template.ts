@@ -82,6 +82,15 @@ export function renderRouterScript(p: RouterScriptParams): string {
 /ip address
 :if ([:len [find interface=echo-tunnel]] = 0) do={ add address=${p.wireguardTunnelIp} interface=echo-tunnel }
 
+# A WireGuard peer's allowed-address only controls which packets the
+# tunnel will carry — unlike Linux's wg-quick, RouterOS does NOT use it
+# to populate the routing table. Without this route the router has no
+# way to know 10.77.0.1 (radius-service) is reachable via echo-tunnel at
+# all, and RADIUS requests fail immediately with "Network unreachable"
+# instead of ever leaving the router.
+/ip route
+:if ([:len [find dst-address="10.77.0.0/16" gateway="echo-tunnel"]] = 0) do={ add dst-address=10.77.0.0/16 gateway=echo-tunnel }
+
 # --- 2. LAN bridge — reuse one if it already exists (e.g. factory
 #        default), otherwise create it and bridge every non-WAN port and
 #        every wireless radio into it. This is the piece that was
