@@ -37,10 +37,30 @@ pnpm dev                  # open http://localhost:5173/login.html
 
 ## Building for a router
 
+`VITE_FUNCTIONS_BASE_URL` is baked into the bundle at build time — if you
+don't set it, it silently falls back to the `.env.example` value
+(`http://localhost:54321/functions/v1`), and every fetch from a real
+router's captive portal (plans, purchase, voucher check) will fail because
+it's trying to reach `localhost` on the customer's own phone. This bit us
+once already; always set it explicitly for a real build:
+
 ```bash
-pnpm build                # outputs dist/login.html, dist/assets/*
+VITE_FUNCTIONS_BASE_URL=https://<project-ref>.supabase.co/functions/v1 pnpm build
+# outputs dist/login.html, dist/redirect.html, dist/assets/*
 ```
 
-Upload `dist/` to the `captive-portal-builds` Supabase Storage bucket
-(same relative paths) — the RouterOS provisioning script's `/tool fetch`
-calls pull from `${SUPABASE_URL}/storage/v1/object/public/captive-portal-builds/...`.
+Upload `dist/` to the `captive-portal-builds` Supabase Storage bucket at
+the same relative paths (matching `CAPTIVE_PORTAL_FILES` in
+`supabase/functions/_shared/router-template.ts`) — the RouterOS
+provisioning script's `/tool fetch` calls pull from
+`${SUPABASE_URL}/storage/v1/object/public/captive-portal-builds/...`.
+
+`redirect.html` is a MikroTik-native template (not built by Vite — it lives
+in `public/` and is copied verbatim) that RouterOS's hotspot uses to catch
+an arbitrary unauthenticated request and forward it to `/login`. Without
+it, the login page still works if hit directly at `/login`, but nothing
+ever redirects a client there in the first place.
+
+After uploading, any router that was already provisioned won't pick up the
+change until its script is re-run — `/tool fetch`ing these files only
+happens during provisioning, the router doesn't live-sync from Storage.
