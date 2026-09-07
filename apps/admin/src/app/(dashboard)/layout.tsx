@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/Sidebar";
 import { SignOutButton } from "@/components/SignOutButton";
+import { NotificationBell } from "@/components/NotificationBell";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -40,6 +41,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <header className="flex items-center justify-between border-b-2 border-signal-border bg-signal-surface px-8 py-4">
           <div />
           <div className="flex items-center gap-4">
+            <NotificationBell />
             <span className="text-sm text-signal-ink-dim">{fullName}</span>
             <SignOutButton />
           </div>

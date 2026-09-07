@@ -5,6 +5,15 @@ import { createClient } from "@/lib/supabase/client";
 import type { ActiveSession, Transaction } from "@/lib/supabase/types";
 import { StatTile } from "@/components/StatTile";
 import { EmptyState } from "@/components/EmptyState";
+import { RevenueBarChart, type RevenuePoint } from "@/components/charts/RevenueBarChart";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function startOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
 
 export default function DashboardPage() {
   const supabase = createClient();
@@ -12,26 +21,33 @@ export default function DashboardPage() {
   const [revenueToday, setRevenueToday] = useState(0);
   const [vouchersUnused, setVouchersUnused] = useState(0);
   const [devicesLinked, setDevicesLinked] = useState(0);
+  const [dailySeries, setDailySeries] = useState<RevenuePoint[]>([]);
+  const [currency, setCurrency] = useState("KES");
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      const startOfDay = new Date();
-      startOfDay.setHours(0, 0, 0, 0);
+      const startToday = startOfDay(new Date());
+      const since14 = new Date(Date.now() - 13 * DAY_MS);
 
-      const [sessionsRes, txRes, vouchersRes, devicesRes] = await Promise.all([
+      const [sessionsRes, txRes, vouchersRes, devicesRes, trendRes] = await Promise.all([
         supabase.from("active_sessions").select("*").order("session_start", { ascending: false }),
         supabase
           .from("transactions")
           .select("amount")
           .eq("status", "completed")
-          .gte("completed_at", startOfDay.toISOString()),
+          .gte("completed_at", startToday.toISOString()),
         supabase.from("vouchers").select("id", { count: "exact", head: true }).eq("status", "unused"),
         supabase
           .from("mikrotik_devices")
           .select("id", { count: "exact", head: true })
           .eq("status", "linked"),
+        supabase
+          .from("transactions")
+          .select("amount, currency, completed_at")
+          .eq("status", "completed")
+          .gte("completed_at", since14.toISOString()),
       ]);
 
       if (cancelled) return;
@@ -41,6 +57,27 @@ export default function DashboardPage() {
       );
       setVouchersUnused(vouchersRes.count ?? 0);
       setDevicesLinked(devicesRes.count ?? 0);
+
+      const trend = trendRes.data ?? [];
+      if (trend[0]) setCurrency(trend[0].currency);
+      const buckets = new Map<string, number>();
+      for (let i = 13; i >= 0; i--) {
+        buckets.set(startOfDay(new Date(Date.now() - i * DAY_MS)).toISOString().slice(0, 10), 0);
+      }
+      for (const t of trend as { amount: number; completed_at: string }[]) {
+        const key = startOfDay(new Date(t.completed_at)).toISOString().slice(0, 10);
+        if (buckets.has(key)) buckets.set(key, (buckets.get(key) ?? 0) + Number(t.amount));
+      }
+      setDailySeries(
+        Array.from(buckets.entries()).map(([key, value]) => {
+          const d = new Date(key);
+          return {
+            label: d.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+            fullLabel: d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }),
+            value,
+          };
+        }),
+      );
     }
     load();
 
@@ -77,6 +114,16 @@ export default function DashboardPage() {
         <StatTile label="Revenue today" value={`KES ${revenueToday.toLocaleString()}`} accent="brand" />
         <StatTile label="Unused vouchers" value={vouchersUnused} accent="voucher" />
         <StatTile label="MikroTiks linked" value={devicesLinked} accent="brand" />
+      </div>
+
+      <div className="card">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-signal-ink">Revenue — last 14 days</h2>
+          <a href="/accounting" className="text-xs font-bold text-signal-brand hover:underline">
+            Full accounting →
+          </a>
+        </div>
+        <RevenueBarChart data={dailySeries} currency={currency} />
       </div>
 
       <div className="card">

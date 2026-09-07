@@ -130,12 +130,35 @@ export interface Transaction {
   amount: number;
   currency: string;
   method: "mpesa_stk" | "card" | "manual";
-  status: "pending" | "completed" | "failed" | "cancelled";
+  status: "pending" | "completed" | "failed" | "cancelled" | "refunded";
   phone: string | null;
   pesapal_order_tracking_id: string | null;
   pesapal_merchant_reference: string;
+  refund_reason: string | null;
+  refunded_amount: number | null;
+  refunded_at: string | null;
   created_at: string;
   completed_at: string | null;
+}
+
+export interface Notification {
+  id: string;
+  org_id: string;
+  type:
+    | "payment_completed"
+    | "payment_failed"
+    | "payment_refunded"
+    | "device_linked"
+    | "device_offline"
+    | "device_error"
+    | "voucher_low";
+  severity: "info" | "warning" | "critical";
+  title: string;
+  body: string | null;
+  related_table: string | null;
+  related_id: string | null;
+  read_at: string | null;
+  created_at: string;
 }
 
 export interface CaptivePortalTheme {
@@ -174,8 +197,28 @@ export interface Database {
       active_sessions: TableDef<ActiveSession>;
       transactions: TableDef<Transaction>;
       captive_portal_themes: TableDef<CaptivePortalTheme>;
+      notifications: TableDef<Notification>;
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      create_pppoe_account: {
+        Args: {
+          p_customer_phone: string;
+          p_customer_name: string | null;
+          p_username: string;
+          p_password: string;
+          p_plan_id: string;
+        };
+        Returns: PppoeAccount;
+      };
+      refund_transaction: {
+        Args: {
+          p_transaction_id: string;
+          p_amount: number;
+          p_reason: string | null;
+        };
+        Returns: Transaction;
+      };
+    };
   };
 }

@@ -31,6 +31,25 @@ const NAV = [
     ),
   },
   {
+    href: "/accounting",
+    label: "Accounting",
+    icon: (p: SVGProps<SVGSVGElement>) => (
+      <Icon {...p}>
+        <path d="M3 20h18M5 20V10l4-3 4 3v10M13 20V6l4-2 4 2v14" />
+      </Icon>
+    ),
+  },
+  {
+    href: "/notifications",
+    label: "Notifications",
+    icon: (p: SVGProps<SVGSVGElement>) => (
+      <Icon {...p}>
+        <path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z" />
+        <path d="M9.5 20a2.5 2.5 0 0 0 5 0" />
+      </Icon>
+    ),
+  },
+  {
     href: "/devices",
     label: "MikroTiks",
     icon: (p: SVGProps<SVGSVGElement>) => (
@@ -68,6 +87,16 @@ const NAV = [
         <circle cx="9" cy="8" r="3.25" />
         <path d="M3.5 19c1-3.2 3.3-4.8 5.5-4.8s4.5 1.6 5.5 4.8" />
         <path d="M16 4.5c1.5.3 2.6 1.6 2.6 3.2 0 1.5-1 2.8-2.4 3.2M18.2 14.3c1.9.6 3.2 2.1 3.8 4.3" />
+      </Icon>
+    ),
+  },
+  {
+    href: "/pppoe",
+    label: "PPPoE",
+    icon: (p: SVGProps<SVGSVGElement>) => (
+      <Icon {...p}>
+        <rect x="3" y="6" width="18" height="12" rx="2" />
+        <path d="M7 10h10M7 14h6" />
       </Icon>
     ),
   },
