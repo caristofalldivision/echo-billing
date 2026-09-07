@@ -29,6 +29,13 @@ export default function DevicesPage() {
   const [confirmRegenerateId, setConfirmRegenerateId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [bootstrapCopied, setBootstrapCopied] = useState(false);
+
+  async function copyBootstrap() {
+    await navigator.clipboard.writeText(bootstrap);
+    setBootstrapCopied(true);
+    setTimeout(() => setBootstrapCopied(false), 2000);
+  }
 
   async function load() {
     setLoadError(null);
@@ -249,18 +256,28 @@ export default function DevicesPage() {
             <div className="flex flex-col gap-4">
               <div>
                 <p className="mb-2 text-sm text-signal-ink-dim">
-                  Paste these two lines into a New Terminal on the router. It sets up the WireGuard
+                  Paste these lines into a New Terminal on the router. It sets up the WireGuard
                   tunnel, hotspot network (bridge, DHCP, wireless), RADIUS, walled garden, and pulls the
                   captive portal — one time, no follow-up needed. Pasting the full script directly tends
                   to get corrupted on long lines in WinBox&apos;s terminal, which is why this fetches it as a
                   file instead.
                 </p>
-                <textarea
-                  readOnly
-                  className="input h-32 font-mono text-xs"
-                  value={bootstrap}
-                  onFocus={(e) => e.currentTarget.select()}
-                />
+                <p className="mb-2 text-xs font-bold text-signal-alert">
+                  Use the Copy button below, not manual selection — the last line (the actual{" "}
+                  <code>/import</code>) is easy to drop by accident when drag-selecting, and the router
+                  silently does nothing without it.
+                </p>
+                <div className="flex flex-col gap-2">
+                  <textarea
+                    readOnly
+                    className="input h-32 font-mono text-xs"
+                    value={bootstrap}
+                    onFocus={(e) => e.currentTarget.select()}
+                  />
+                  <button type="button" className="btn-secondary self-start py-1.5" onClick={copyBootstrap}>
+                    {bootstrapCopied ? "Copied ✓ (all 5 lines)" : "Copy all 5 lines"}
+                  </button>
+                </div>
               </div>
 
               <div className="rounded-tight border border-signal-border bg-signal-voucher-soft p-3 text-xs text-signal-ink-dim">
