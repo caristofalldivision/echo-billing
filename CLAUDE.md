@@ -69,20 +69,36 @@ Pesapal's `GetTransactionStatus` before fulfilling, and guards on
 `transactions.status === 'completed'` before issuing a second voucher/renewal.
 Don't "simplify" this by trusting the callback body; Pesapal retries IPNs.
 
-**Voucher claims must stay atomic.** `radius-service/src/db.js`'s
-`claimVoucher` does the unused→used transition in a single `UPDATE ... WHERE
-status = 'unused' RETURNING *`, so two simultaneous logins with the same code
-can't both succeed. Don't replace that with a read-then-write.
+**Voucher claims must stay atomic — and "used" no longer means "can never
+auth again."** `radius-service/src/db.js`'s `claimVoucher` used to be a
+strict one-shot `unused → used` transition; the *first* successful auth
+burned the code forever, so anything that dropped the router's hotspot
+session before the customer's paid time actually ran out (idle-timeout, a
+router reboot clearing `/ip hotspot active`, walking out of range and back)
+permanently locked them out with time/data still remaining — found and
+fixed 2026-09. It now also accepts the same code again from the **same
+device** (matched on `Calling-Station-Id`/MAC, stored in
+`vouchers.claimed_mac_address` on first claim) while still inside the
+plan's paid duration (`redeemed_at + plans.duration_minutes`) — that MAC
+check is what keeps the original anti-sharing property intact; a different
+device is still rejected even mid-window. Still a single
+`UPDATE ... WHERE ... RETURNING *` — two simultaneous claims of the same
+code still can't both succeed, Postgres's row lock during the `UPDATE`
+serializes them. Don't replace this with a read-then-write, and don't
+"simplify" it back to a bare unused/used flag — that's the exact bug this
+fixed.
 
 **Respect the public/private function boundary.** `supabase/config.toml`
-lists exactly which edge functions skip JWT verification (`portal-api`,
-`pesapal-ipn`, `heartbeat`) because they're called by anonymous captive-portal
-clients, Pesapal, or a router's bearer-token heartbeat — not a signed-in
-admin. Everything else uses the caller's Supabase auth JWT and RLS
-(`current_org_id()` in `supabase/migrations/0001_init.sql`) to scope data.
-Don't add a new public route without asking whether it actually needs to be
-public, and don't have a public function use anything but the service-role
-client with its own explicit checks.
+lists exactly which edge functions skip JWT verification — `portal-api`,
+`pesapal-ipn`, `heartbeat`, `provisioning-fetch`, `ip-bindings-sync`,
+`org-exists` — because they're called by anonymous captive-portal clients,
+Pesapal, or a router authenticating with its own `provisioning_token`
+bearer token — not a signed-in admin. Everything else needs a Supabase auth
+JWT *and* must call `getCallerAdmin()` (see the guardrail above — JWT
+verification alone isn't enough). Don't add a new public route without
+asking whether it actually needs to be public, and don't have a public
+function use anything but the service-role client with its own explicit
+checks (device-token lookup, IPN re-verification, etc.).
 
 **No real secrets in git.** Only commit `.env.example` files. Pesapal/
 TalkSasa/Resend credentials live in the `organizations` table (edited from
@@ -91,15 +107,136 @@ the admin portal's Settings pages), set via `supabase secrets set` for
 `radius-service` itself — never in `fly.toml`'s `[env]` block or a
 `.env` that isn't gitignored.
 
-**Design system is shared on purpose.** Colors/fonts/radii live in
-`packages/doodles/tailwind-preset.js`, consumed by `apps/admin`'s
-`tailwind.config.js`. Add missing shades there rather than hardcoding hex
-values in a page — that gap already caused one build break (missing
-`indigo-200`/`400`) during initial setup.
+**Two separate design systems — don't mix them.** `packages/doodles` (flat
+brand colors, rounded/soft, hand-drawn SVG doodles) is the **captive
+portal's** identity only. `apps/admin` (and `apps/landing`) use
+`packages/signal` instead — De Stijl/Neoplasticism: flat primary colors,
+black rule lines, sharp corners, explicitly zero shadows/blur
+(`packages/signal/tailwind-preset.js` sets `boxShadow`/`backdropBlur` to
+`none`). Add missing tokens to whichever package the surface actually
+consumes rather than hardcoding hex values or reaching for the other
+package's tokens — a "make the admin portal look more like the captive
+portal" ask should pull the *idea* (e.g. a colorful divider) across and
+re-express it in signal's own flat/sharp language, not import doodle assets
+into `apps/admin`, which doesn't even depend on `@echo/doodles`.
+
+**Edge functions requiring a Supabase JWT must call `getCallerAdmin()`, not
+just rely on `verify_jwt = true`.** The gateway's JWT check only proves the
+caller has *some* Supabase auth account — it does not prove they're an
+`admin_users` member of this org. Supabase's own signup API isn't gated by
+the Next.js `/signup` page's "already set up" check (that's app-level UI,
+not an Auth-level restriction), so without an explicit `getCallerAdmin(req)`
+check, anyone who can create *any* Supabase account can call the function.
+This exact gap was found and fixed in `voucher-generate`, `sms-send`,
+`email-send`, `pesapal-initiate`, and `provisioning-script` (2026-09) — the
+last of which leaked a router's WireGuard private key and MikroTik API
+password to any authenticated caller, with no org-scoping on top of that.
+`admin-add-user`/`admin-list-users`/`admin-update-role`/`admin-remove-user`
+were always correct — copy that pattern (`getCallerAdmin`, then scope every
+query to `caller.org_id`) for any new non-public function, not just the
+`verify_jwt = false` check for public ones.
 
 **Only commit when asked**, per standard practice — this repo is no
 exception. Prefer small, reviewable commits over one giant diff when doing
 follow-up work.
+
+## Gotchas — hard-won, from real hardware and live testing (2026-09)
+
+**RouterOS scripts pasted into WinBox must be one `;`-chained statement,
+not multiple lines.** A paste that drops anything after an early line
+(copy-paste truncation from a web page, WinBox scrollback confusion,
+retyping from a screenshot) leaves earlier lines having genuinely
+succeeded and later ones silently never running — RouterOS gives no error,
+it just stops. Hit repeatedly in practice with the bootstrap snippet before
+`renderBootstrapScript()` was rewritten as one statement. As one statement,
+RouterOS either runs the whole thing start to finish or doesn't parse it at
+all — nothing to drop partway through. If you ever go back to multiple
+lines for readability, you're reintroducing this exact bug class. The admin
+portal's Devices page also has a "Copy" button using the Clipboard API
+specifically because manual textarea selection has the same truncation
+failure mode.
+
+**`/tool fetch dst-path="hotspot/..."` (bare) is not the same location as
+`html-directory=hotspot` on every board.** On a RB760iGS (RouterOS 7.x),
+RouterOS auto-installs its own bundled default hotspot skin into the real
+on-disk `flash/hotspot/` the instant `/ip hotspot add` runs, but a bare
+`hotspot/...` `dst-path` landed in a different, sibling top-level directory
+that the hotspot server never read from — captive portal files fetched
+with zero errors, router silently kept serving MikroTik's own default
+login page. Fixed by making `dst-path` explicitly `flash/hotspot/...`
+everywhere in `router-template.ts`/`router-setup.rsc.tpl`. If a future
+board/RouterOS version shows the stock MikroTik login page instead of
+Echo's, check this first via `/file print where name~"hotspot"` — you'll
+see two different directories if it's regressed.
+
+**NAT masquerade for the WAN interface is not something `/ip hotspot add`
+sets up.** It only configures the pre-login walled-garden/redirect
+behavior. Without an explicit `/ip firewall nat` masquerade rule on
+`ether1`, hotspot clients authenticate fine and get a DHCP address, but
+their traffic to the real internet has no address translation and
+silently dies — presents as "connects but no internet" / "doesn't redirect
+to anything," not as an auth failure. Section 2b in `router-template.ts`.
+
+**MikroTik hotspot logins usually run inside the OS's restricted
+captive-portal mini-browser** (Apple's Captive Network Assistant, Android's
+equivalent), not a real browser tab — confirmed live via a "blank/blocked"
+page after a popup-based Pesapal checkout. That mini-browser is known to
+block/mishandle `window.open()` and handle chained redirects/meta-refresh
+badly. The purchase flow does a **plain full-page redirect** to Pesapal
+instead (`window.location.href`), and gets back to the captive portal via
+`window.location.origin` (captured client-side before leaving — a LAN
+address the backend has no other way to know) embedded in Pesapal's
+`callback_url`, landing directly on `login.html?transactionId=...` — no
+intermediate page. Don't reintroduce a popup or an extra redirect hop here
+without testing specifically inside a phone's real captive-portal
+assistant, not just a desktop browser.
+
+**Pesapal's IPN webhook is not reliable enough to be the only fulfillment
+trigger**, at least on sandbox/demo credentials — observed to simply never
+fire. `portal-api`'s `/status` route (what the captive portal polls) and
+its `/return` route both also call `reconcileTransaction()` (in
+`_shared/fulfillment.ts`) to actively re-verify with Pesapal's
+`GetTransactionStatus` and fulfill right there — same idempotent,
+re-verified logic the webhook uses, just triggered from three places
+instead of one. If "customer paid but never got connected" resurfaces,
+check whether all three paths are still wired up before assuming it's a
+new bug.
+
+**TalkSasa's send endpoint only accepts bare-254 phone numbers**
+(`254768557160`) — not `+254768557160`, not the local `0768557160` format
+the captive portal's own phone input collects. Normalized centrally in
+`_shared/sms.ts`'s `sendSms()` so every caller gets it automatically;
+don't add a second normalization path elsewhere; if a caller needs a
+different provider's format, normalize at the call site, not by changing
+the shared one.
+
+**RADIUS vendor-specific attributes cannot be encoded flat by name.** The
+`radius` npm package throws `"unknown attribute"` if you push e.g.
+`["Mikrotik-Rate-Limit", "512k/1M"]` directly — VSAs must be wrapped:
+`["Vendor-Specific", 14988, [["Mikrotik-Rate-Limit", "512k/1M"]]]`, per
+RFC 2865's base `Vendor-Specific` (type 26) attribute. Confirmed by
+round-tripping encode/decode standalone before wiring it into
+`radius-auth.js` — the flat form would have thrown on the very first
+speed-limited login and likely taken down the whole RADIUS process (an
+uncaught error in the `dgram` message handler). `Mikrotik-Rate-Limit`
+format is `rx-rate/tx-rate` where rx/tx are from the *router's* point of
+view (rx = client's upload, tx = client's download) per MikroTik's own
+convention — not independently verified against a live router yet, worth
+confirming upload/download land the right way round the first time a
+speed-limited plan is actually tested end-to-end.
+
+**RouterOS scheduler `add` with `:if ([:len [find name=...]] = 0)` only
+creates a scheduler once — it never updates an existing one's `on-event`.**
+Re-running provisioning after changing a scheduler's logic (as happened
+adding the immediate-heartbeat-fire, then the ip-sync scheduler) does
+nothing on an already-provisioned router unless that scheduler is
+new/differently-named. When adding a *new* scheduled behavior, prefer a
+new, separately-named scheduler (e.g. `echo-ip-sync` alongside
+`echo-heartbeat`, not folded into it) over changing an existing one's
+`on-event` string in place — that way existing routers keep working
+exactly as before until they're deliberately re-provisioned, and a bug in
+the new scheduler can't take down the heartbeat that makes devices show as
+"linked" at all.
 
 ## Local dev quick reference
 
@@ -118,50 +255,58 @@ Full setup steps are in the root `README.md` and each subfolder's own
 
 ## Status
 
-Initial scaffold is built and committed: schema, admin portal with functional
-core pages, edge functions with real provider integration code, captive
-portal purchase/voucher flow, RouterOS provisioning template, and a RADIUS +
-WireGuard service skeleton. `apps/admin` builds and deploys cleanly on
-Vercel and has a working signup/login/team-management account model (see
-"Account model" above). Nothing has been tested against real provider
-sandbox credentials or an actual router yet.
+Phases 1–3 are done and proven against a real MikroTik (RB760iGS): Supabase
+project linked and migrated, `radius-service` deployed to Fly.io
+(`echo-radius` app — see "Fly.io gotcha" below), a real router provisioned,
+WireGuard handshake confirmed, hotspot voucher purchase (Pesapal sandbox
+STK push → RADIUS auth → auto-connect) working end to end, PPPoE auth path
+built. Phase 4's gap list has mostly closed since it was written — see
+below for what's actually still open. Admin portal has grown well past
+"functional core pages": accounting/revenue dashboards with interactive
+charts, a notifications system (DB-trigger-driven, not scattered
+insert-calls), SMS compose + history, voucher compensation as an
+alternative to cash refunds, per-device IP allowlisting, and a redesigned
+grouped sidebar — all on top of the original customers/devices/plans/
+vouchers/transactions pages.
+
+**Fly.io gotcha:** the account this project's `flyctl` is logged into
+(`echonet25@gmail.com`) has a *second*, unrelated app called
+`flow-wallet-api` with 3 active machines. `radius-service/fly.toml` pins
+`app = "echo-radius"`, but any bare `fly` command run outside that
+directory (or without `-a echo-radius`) should still be double-checked
+against `fly apps list` before deploying — don't scale or deploy onto the
+wrong app. `echo-radius` itself is deliberately 1 machine (see
+`radius-service/README.md` on WireGuard session-affinity if that's ever
+tempting to change).
 
 ## Roadmap
 
-**Phase 1 — wire up real infra.** Create a Supabase project, `supabase link`
-+ `supabase db push` the migrations, point `apps/admin/.env.local` at it,
-deploy the edge functions, and visit `/signup` to create the first
-(owner) admin account — see "Account model" above. Get Pesapal sandbox,
-TalkSasa, and Resend credentials into Settings and confirm test
-sends/payments round-trip through the edge functions.
-
-**Phase 2 — RADIUS/WireGuard for real.** Deploy `radius-service` (Fly.io,
-falling back to a plain VPS if Fly's own WireGuard-based private networking
-conflicts — see `radius-service/README.md`). Set `WIREGUARD_SERVER_PUBKEY`/
-`WIREGUARD_SERVER_ENDPOINT`/`RADIUS_SHARED_SECRET` function secrets to match.
-Verify auth/accounting with `radtest` before touching a real router.
-
-**Phase 3 — first real router.** Run the generated provisioning script on an
-actual MikroTik, confirm the WireGuard handshake, RADIUS auth for both a test
-voucher and a test PPPoE account, and that the captive portal renders with
-`$(link-login-only)` correctly substituted.
-
-**Phase 4 — close the known gaps**, in roughly this priority order:
-1. PPPoE account creation UI in the admin portal (currently only renewal via
-   payment is wired up — nothing creates the first account).
-2. CoA disconnect ("kick this user now" from the admin portal) — routers are
+**Phase 4 — remaining known gaps**, in roughly priority order:
+1. CoA disconnect ("kick this user now" from the admin portal) — routers are
    already configured to accept it on udp/3799, `radius-service` just doesn't
    send it yet.
-3. Mikrotik-Rate-Limit VSA so plan speed limits actually apply, not just
-   `Session-Timeout`.
-4. WireGuard peer teardown when a device is deleted (currently additive-only).
-5. Historical session/usage logging — accounting `Stop` just deletes the live
-   row today; nothing archives it for usage reports.
+2. Data-cap enforcement — `plans.data_cap_mb` is tracked (session_history/
+   active_sessions accumulate real bytes now) but nothing acts on a customer
+   exceeding it; needs CoA disconnect (above) as its mechanism.
+3. WireGuard peer teardown when a device is deleted (currently additive-only
+   in `radius-service/src/wireguard.js`'s `syncPeers()`).
+4. `Mikrotik-Rate-Limit` VSA is now sent (2026-09) but the rx/tx
+   (upload/download) ordering hasn't been confirmed against a live router
+   yet — verify the first time a speed-limited plan is actually tested.
+5. IP allowlist enforcement (`ip-bindings-sync` + the `echo-ip-sync`
+   scheduler) needs a router to re-provision before it takes effect on
+   anything already linked — not yet verified against real hardware.
 
 **Phase 5 — production hardening.** Move Pesapal/TalkSasa/Resend credentials
 from plaintext `organizations` columns into Supabase Vault. Add monitoring/
 alerting for `radius-service` uptime and heartbeat gaps. Load-test with
-multiple routers and concurrent voucher purchases.
+multiple routers and concurrent voucher purchases. Confirm whether the live
+Supabase project's Auth settings actually have public signup disabled
+(`supabase/config.toml`'s `enable_signup = true` only governs the local dev
+stack, not the hosted project) — the `getCallerAdmin()` checks added 2026-09
+are defense in depth regardless, but signup being open on the real project
+would still let anyone create an account, just not act on it anywhere
+useful anymore.
 
 **Phase 6 (later, optional) — multi-tenant.** Only if Echo is sold to more
 than one ISP — the schema is already org-scoped for this, but auth, billing

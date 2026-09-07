@@ -1,0 +1,5 @@
+# MikroTik RouterOS vendor-specific attributes (vendor id 14988). Minimal —
+# just the one attribute Echo actually sends today. Format matches this
+# package's own test fixtures (test/dictionaries/dictionary.aruba): a bare
+# VENDORATTR line, no VENDOR/BEGIN-VENDOR wrapper needed for encode-by-name.
+VENDORATTR 14988 Mikrotik-Rate-Limit 8 string

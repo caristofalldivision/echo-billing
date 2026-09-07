@@ -105,6 +105,7 @@ export interface Voucher {
   created_at: string;
   compensation_for_transaction_id: string | null;
   compensation_reason: string | null;
+  claimed_mac_address: string | null;
 }
 
 export interface SmsLog {

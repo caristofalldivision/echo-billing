@@ -10,15 +10,44 @@ async function findDeviceByTunnelIp(ip) {
   return rows[0] ?? null;
 }
 
-async function claimVoucher(code) {
+// Was a strict one-shot unused->used transition: the FIRST successful auth
+// burned the code forever, so anything that dropped the router's hotspot
+// session before the customer's paid time actually ran out (idle-timeout,
+// a router reboot clearing /ip hotspot active, walking out of range and
+// back) permanently locked them out with time/data still remaining. Now
+// also accepts the same code again from the SAME device (Calling-Station-Id,
+// i.e. MAC) while still inside the plan's paid duration -- this is what
+// makes a reconnect work without reopening the exact thing the one-shot
+// design existed to prevent: a shared code letting *multiple* devices use
+// one voucher at once. A different MAC is still rejected even mid-window.
+// If a request genuinely carries no MAC (macAddress is null), reconnect is
+// allowed regardless -- permissive fallback for that edge case rather than
+// a hard failure, since MikroTik hotspot auth requests reliably include
+// Calling-Station-Id in practice.
+//
+// Still a single atomic UPDATE...WHERE...RETURNING -- two simultaneous
+// claims of the same code still can't both succeed; Postgres's row lock
+// during the UPDATE serializes them, so the second one re-evaluates the
+// WHERE clause against the already-updated row.
+async function claimVoucher(code, macAddress) {
   const { rows } = await pool.query(
-    `update vouchers
-       set status = 'used', redeemed_at = now()
-     where code = $1
-       and status = 'unused'
-       and (expires_at is null or expires_at > now())
-     returning id, org_id, plan_id`,
-    [code],
+    `update vouchers v
+        set status = 'used',
+            redeemed_at = coalesce(v.redeemed_at, now()),
+            claimed_mac_address = coalesce(v.claimed_mac_address, $2)
+       from plans p
+      where v.code = $1
+        and v.plan_id = p.id
+        and (
+             (v.status = 'unused' and (v.expires_at is null or v.expires_at > now()))
+          or (
+               v.status = 'used'
+               and (v.claimed_mac_address is null or $2 is null or v.claimed_mac_address = $2)
+               and (p.duration_minutes is null or v.redeemed_at + (p.duration_minutes || ' minutes')::interval > now())
+             )
+           )
+      returning v.id, v.org_id, v.plan_id`,
+    [code, macAddress ?? null],
   );
   return rows[0] ?? null;
 }

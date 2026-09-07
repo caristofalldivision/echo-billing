@@ -71,17 +71,30 @@ Test auth without a real router:
 radtest <voucher-code> <voucher-code> localhost 1812 <RADIUS_SHARED_SECRET>
 ```
 
-## Follow-ups (flagged, not built in this pass)
+## Built since the initial pass (2026-09)
+
+- **Mikrotik-Rate-Limit VSA**: `src/mikrotik.dictionary` loads vendor 14988's
+  `Mikrotik-Rate-Limit` (attr 8) into the `radius` package;
+  `radius-auth.js` sends it wrapped in the base `Vendor-Specific` attribute
+  (`["Vendor-Specific", 14988, [["Mikrotik-Rate-Limit", "rx/tx"]]]` — VSAs
+  can't be encoded flat by name, that throws). rx/tx = upload/download from
+  the router's own point of view per MikroTik's convention — not yet
+  confirmed against a live router.
+- **Historical session/usage logging**: `deleteActiveSession()` archives
+  into `session_history` (atomic `DELETE...RETURNING`/`INSERT`) instead of
+  just deleting on Accounting `Stop`.
+- **Voucher reconnect**: `claimVoucher(code, macAddress)` now accepts a
+  reconnect from the *same* device (MAC-matched) within the plan's paid
+  duration, not just a strict one-shot unused→used. See the long comment on
+  `claimVoucher` in `src/db.js` and the matching guardrail in root
+  `CLAUDE.md`.
+
+## Follow-ups (flagged, not built yet)
 
 - **CoA (disconnect)**: routers are already configured to accept CoA on
   udp/3799 (see `provisioning/templates/router-setup.rsc.tpl`), but this
   service doesn't send CoA-Request yet — needed for "kick this user now"
-  from the admin portal.
-- **Mikrotik-Rate-Limit VSA**: Access-Accept currently only sends
-  `Session-Timeout` from the plan; per-plan speed limits need the Mikrotik
-  vendor dictionary loaded into the `radius` package and a
-  `Mikrotik-Rate-Limit` attribute added in `radius-auth.js`.
+  from the admin portal, and for data-cap enforcement (nothing currently
+  stops a session once `plans.data_cap_mb` is exceeded).
 - **Peer teardown**: `syncPeers()` is additive — deleting a device in the
   admin portal doesn't yet remove its WireGuard peer.
-- Historical session/usage logging (accounting `Stop` currently just deletes
-  the live row; nothing archives it for usage reports yet).

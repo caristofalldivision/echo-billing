@@ -1,8 +1,17 @@
 // Admin-triggered: generates (or re-generates) the WireGuard identity for a
-// mikrotik_devices row and returns the rendered one-time RouterOS script.
-// Requires a Supabase auth JWT.
+// mikrotik_devices row and returns the rendered one-time RouterOS script —
+// which embeds the WireGuard private key and MikroTik API password in
+// plaintext. Requires a Supabase auth JWT belonging to an actual
+// admin_users member of this org: verify_jwt=true at the gateway only
+// proves the caller has *a* Supabase account, not that they're one of ours
+// (see the long comment in voucher-generate/index.ts). This was previously
+// the most severe of that whole class of gap — no auth check AND no org
+// scoping on the device lookup meant anyone with any Supabase account could
+// pull another org's router credentials by guessing/enumerating a
+// mikrotikDeviceId.
 import { handlePreflight, withCors } from "../_shared/cors.ts";
 import { supabaseAdmin, getOrgSettings } from "../_shared/supabase.ts";
+import { getCallerAdmin } from "../_shared/auth.ts";
 import { renderBootstrapScript, renderRouterScript } from "../_shared/router-template.ts";
 import nacl from "npm:tweetnacl@1";
 
@@ -20,6 +29,9 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return withCors({ error: "Method not allowed" }, { status: 405 });
 
   try {
+    const caller = await getCallerAdmin(req);
+    if (!caller) return withCors({ error: "Not authorized" }, { status: 403 });
+
     const { mikrotikDeviceId, confirmRegenerate } = await req.json();
     if (!mikrotikDeviceId) return withCors({ error: "mikrotikDeviceId is required" }, { status: 400 });
 
@@ -45,12 +57,13 @@ Deno.serve(async (req) => {
     }
 
     const supabase = supabaseAdmin();
-    const org = await getOrgSettings();
+    const org = await getOrgSettings(caller.org_id);
 
     const { data: device, error } = await supabase
       .from("mikrotik_devices")
       .select("*")
       .eq("id", mikrotikDeviceId)
+      .eq("org_id", caller.org_id)
       .single();
     if (error || !device) return withCors({ error: "Device not found" }, { status: 404 });
 
