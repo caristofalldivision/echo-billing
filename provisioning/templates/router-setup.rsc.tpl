@@ -162,6 +162,11 @@ set use-radius=yes accounting=yes interim-update=5m
 # --- 10. Heartbeat — periodic check-in so Echo knows this device is alive
 /system scheduler
 :if ([:len [find name="echo-heartbeat"]] = 0) do={ \
-  add name=echo-heartbeat interval=5m on-event=":local r [/tool fetch url=\"{{FUNCTIONS_BASE_URL}}/heartbeat\" http-method=post http-header-field=\"Authorization: Bearer {{PROVISIONING_TOKEN}}\" as-value output=none]" }
+  add name=echo-heartbeat interval=2m on-event=":local r [/tool fetch url=\"{{FUNCTIONS_BASE_URL}}/heartbeat\" http-method=post http-header-field=\"Authorization: Bearer {{PROVISIONING_TOKEN}}\" as-value output=none]" }
+
+# Fire one heartbeat right now instead of waiting for the scheduler's first
+# tick — this is what flips the device to "linked" in the admin portal, so
+# doing it here means that happens within seconds of the script finishing.
+/tool fetch url="{{FUNCTIONS_BASE_URL}}/heartbeat" http-method=post http-header-field="Authorization: Bearer {{PROVISIONING_TOKEN}}" as-value output=none
 
 :put "Echo provisioning complete for {{DEVICE_NAME}}. Hotspot bridge: $hsBridge"

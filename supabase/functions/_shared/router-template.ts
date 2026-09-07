@@ -184,7 +184,13 @@ ${fetchLines}
 # --- 10. Heartbeat — periodic check-in so Echo knows this device is alive
 /system scheduler
 :if ([:len [find name="echo-heartbeat"]] = 0) do={ \\
-  add name=echo-heartbeat interval=5m on-event=":local r [/tool fetch url=\\"${p.functionsBaseUrl}/heartbeat\\" http-method=post http-header-field=\\"Authorization: Bearer ${p.provisioningToken}\\" as-value output=none]" }
+  add name=echo-heartbeat interval=2m on-event=":local r [/tool fetch url=\\"${p.functionsBaseUrl}/heartbeat\\" http-method=post http-header-field=\\"Authorization: Bearer ${p.provisioningToken}\\" as-value output=none]" }
+
+# Fire one heartbeat right now instead of waiting for the scheduler's first
+# tick — this is what actually flips the device to "linked" in the admin
+# portal, so doing it here means that happens within seconds of the script
+# finishing, not on whatever RouterOS's own scheduler start-time behavior is.
+/tool fetch url="${p.functionsBaseUrl}/heartbeat" http-method=post http-header-field="Authorization: Bearer ${p.provisioningToken}" as-value output=none
 
 :put "Echo provisioning complete for ${p.deviceName}. Hotspot bridge: $hsBridge"
 `;
@@ -202,10 +208,17 @@ export function renderBootstrapScript(functionsBaseUrl: string, provisioningToke
   // NTP has to run here too, not just inside the fetched script — this
   // fetch is itself an HTTPS request, so if it's the clock breaking cert
   // validation, the fix needs to land before this line, not after it.
-  return `/system ntp client set enabled=yes
-:if ([:len [/system ntp client servers find address="pool.ntp.org"]] = 0) do={ /system ntp client servers add address=pool.ntp.org }
-:delay 5s
-/tool fetch url="${functionsBaseUrl}/provisioning-fetch?token=${provisioningToken}" dst-path="echo-setup.rsc" mode=https
-/import file-name=echo-setup.rsc
+  //
+  // Deliberately ONE `;`-chained statement, not 5 separate lines. As 5
+  // lines, a paste that drops anything after the fetch (copy-paste from a
+  // web page truncating, WinBox scrollback confusion, retyping from a
+  // screenshot) leaves NTP configured and the file downloaded but /import
+  // never runs — RouterOS just silently stops, with no error, because
+  // every earlier line genuinely succeeded on its own. That exact failure
+  // mode has hit real users repeatedly. As one statement, RouterOS either
+  // runs the whole thing start to finish or doesn't parse it at all —
+  // there's nothing left to drop partway through. :put markers give visible
+  // progress instead of the bare fetch status block being the only output.
+  return `:put "[Echo] 1/2 — syncing clock, fetching setup script..."; /system ntp client set enabled=yes; :if ([:len [/system ntp client servers find address="pool.ntp.org"]] = 0) do={ /system ntp client servers add address=pool.ntp.org }; :delay 5s; /tool fetch url="${functionsBaseUrl}/provisioning-fetch?token=${provisioningToken}" dst-path="echo-setup.rsc" mode=https; :put "[Echo] 2/2 — running full setup (WireGuard, hotspot, RADIUS, captive portal)..."; /import file-name=echo-setup.rsc; :put "[Echo] Bootstrap finished. Look for 'Echo provisioning complete' just above — if it's missing, something failed partway; scroll up for the error."
 `;
 }

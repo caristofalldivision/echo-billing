@@ -139,7 +139,7 @@ export default function DevicesPage() {
     setWaitingSince(null);
     setElapsedSec(0);
     setBootstrap(
-      `/system ntp client set enabled=yes\n:if ([:len [/system ntp client servers find address="pool.ntp.org"]] = 0) do={ /system ntp client servers add address=pool.ntp.org }\n:delay 5s\n/tool fetch url="${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/provisioning-fetch?token=${device.provisioning_token}" dst-path="echo-setup.rsc" mode=https\n/import file-name=echo-setup.rsc\n`,
+      `:put "[Echo] 1/2 — syncing clock, fetching setup script..."; /system ntp client set enabled=yes; :if ([:len [/system ntp client servers find address="pool.ntp.org"]] = 0) do={ /system ntp client servers add address=pool.ntp.org }; :delay 5s; /tool fetch url="${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/provisioning-fetch?token=${device.provisioning_token}" dst-path="echo-setup.rsc" mode=https; :put "[Echo] 2/2 — running full setup (WireGuard, hotspot, RADIUS, captive portal)..."; /import file-name=echo-setup.rsc; :put "[Echo] Bootstrap finished. Look for 'Echo provisioning complete' just above — if it's missing, something failed partway; scroll up for the error."\n`,
     );
   }
 
@@ -282,16 +282,14 @@ export default function DevicesPage() {
             <div className="flex flex-col gap-4">
               <div>
                 <p className="mb-2 text-sm text-signal-ink-dim">
-                  Paste these lines into a New Terminal on the router. It sets up the WireGuard
-                  tunnel, hotspot network (bridge, DHCP, wireless), RADIUS, walled garden, and pulls the
-                  captive portal — one time, no follow-up needed. Pasting the full script directly tends
-                  to get corrupted on long lines in WinBox&apos;s terminal, which is why this fetches it as a
-                  file instead.
-                </p>
-                <p className="mb-2 text-xs font-bold text-signal-alert">
-                  Use the Copy button below, not manual selection — the last line (the actual{" "}
-                  <code>/import</code>) is easy to drop by accident when drag-selecting, and the router
-                  silently does nothing without it.
+                  Paste this one line into a New Terminal on the router and press Enter. It sets up the
+                  WireGuard tunnel, hotspot network (bridge, DHCP, wireless), RADIUS, walled garden, and
+                  pulls the captive portal — one time, no follow-up needed. It&apos;s deliberately a single{" "}
+                  <code>;</code>-chained statement rather than separate lines — RouterOS then either runs
+                  the whole thing start to finish or doesn&apos;t parse it at all, so there&apos;s nothing to
+                  silently drop partway through the way separate lines could be. Watch for the{" "}
+                  <code>[Echo] 1/2</code> / <code>2/2</code> / <code>Echo provisioning complete</code>{" "}
+                  messages as it runs — that&apos;s your confirmation it actually executed.
                 </p>
                 <div className="flex flex-col gap-2">
                   <textarea
@@ -301,7 +299,7 @@ export default function DevicesPage() {
                     onFocus={(e) => e.currentTarget.select()}
                   />
                   <button type="button" className="btn-secondary self-start py-1.5" onClick={copyBootstrap}>
-                    {bootstrapCopied ? "Copied ✓ (all 5 lines)" : "Copy all 5 lines"}
+                    {bootstrapCopied ? "Copied ✓" : "Copy"}
                   </button>
                 </div>
               </div>
@@ -323,8 +321,9 @@ export default function DevicesPage() {
                       <p>
                         Waiting for the router to check in
                         {elapsedSec > 0 && <span className="font-mono tabular-nums"> — {elapsedSec}s</span>}
-                        . Runs the script, then reports back on its first heartbeat — usually 10–60s after{" "}
-                        <code>/import</code> finishes, not the 5-minute heartbeat interval.
+                        . The script fires an immediate heartbeat as its last step, so this should flip
+                        within seconds of <code>Echo provisioning complete</code> printing on the router —
+                        it doesn&apos;t wait for the recurring 2-minute heartbeat schedule.
                       </p>
                     )}
                   </div>
