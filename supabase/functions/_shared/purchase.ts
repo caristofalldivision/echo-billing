@@ -6,6 +6,13 @@ export interface InitiatePurchaseInput {
   phone: string;
   email?: string;
   mikrotikDeviceId?: string;
+  // window.location.origin captured client-side before the full-page
+  // redirect to Pesapal — the captive portal is served locally by the
+  // router (a LAN address our backend has no other way to know), and this
+  // is what lets the return page send the browser back to the actual
+  // login page instead of stranding it on a generic "payment received"
+  // screen it can't navigate on from.
+  returnOrigin?: string;
 }
 
 export async function initiatePurchase(input: InitiatePurchaseInput) {
@@ -59,12 +66,15 @@ export async function initiatePurchase(input: InitiatePurchaseInput) {
     },
   );
 
+  const returnParams = new URLSearchParams({ ref: merchantReference });
+  if (input.returnOrigin) returnParams.set("origin", input.returnOrigin);
+
   const order = await submitOrder(org, token, {
     merchantReference,
     amount: Number(plan.price),
     currency: plan.currency,
     description: `Echo — ${plan.name}`,
-    callbackUrl: `${functionsBase}/portal-api/return?ref=${merchantReference}`,
+    callbackUrl: `${functionsBase}/portal-api/return?${returnParams.toString()}`,
     ipnId,
     phone: input.phone,
     email: input.email,

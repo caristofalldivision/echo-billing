@@ -52,6 +52,7 @@ Deno.serve(async (req) => {
         phone: body.phone,
         email: body.email,
         mikrotikDeviceId: body.mikrotikDeviceId,
+        returnOrigin: body.returnOrigin,
       });
       return withCors(result);
     }
@@ -119,15 +120,22 @@ Deno.serve(async (req) => {
     if (route === "return" && req.method === "GET") {
       const org = await getOrgSettings();
       const ref = url.searchParams.get("ref");
+      const origin = url.searchParams.get("origin");
 
-      // This page is what Pesapal redirects the payment popup to. It's a
-      // third chance to reconcile (alongside the IPN webhook and the
-      // captive portal's own poll) — sandbox/demo accounts have been seen
-      // to never call the webhook, so checking right here, on the one
-      // request we know definitely happens, matters. Best-effort: a failed
-      // reconcile here still leaves the client's poll as a backstop.
+      // This is a full-page redirect target, not a popup — MikroTik hotspot
+      // logins are typically opened inside the OS's restricted captive-portal
+      // mini-browser (Apple's Captive Network Assistant, Android's
+      // equivalent), which is known to block/mishandle window.open(). A
+      // plain top-level redirect here and back is what actually works there.
+      //
+      // Also a third chance to reconcile (alongside the IPN webhook and the
+      // captive portal's own poll) — sandbox/demo accounts have been seen to
+      // never call the webhook, so checking right here, on the one request
+      // we know definitely happens, matters. Best-effort: a failed reconcile
+      // here still leaves the client's poll as a backstop.
+      let txnId: string | null = null;
       let heading = "Payment received";
-      let message = "Go back to the WiFi login page — your access code will be there or arriving by SMS shortly.";
+      let message = "Confirming and connecting you…";
       if (ref) {
         try {
           const supabase = supabaseAdmin();
@@ -136,8 +144,11 @@ Deno.serve(async (req) => {
             .select("*, plans(*), customers(*)")
             .eq("pesapal_merchant_reference", ref)
             .single();
-          if (txn && txn.status !== "completed" && txn.status !== "failed") {
-            await reconcileTransaction(supabase, org, txn);
+          if (txn) {
+            txnId = txn.id;
+            if (txn.status !== "completed" && txn.status !== "failed") {
+              await reconcileTransaction(supabase, org, txn);
+            }
           }
           const { data: fresh } = await supabase
             .from("transactions")
@@ -146,23 +157,26 @@ Deno.serve(async (req) => {
             .single();
           if (fresh?.status === "failed") {
             heading = "Payment didn't go through";
-            message = "Go back to the WiFi login page to try again.";
-          } else if (fresh?.status !== "completed") {
-            heading = "Confirming payment…";
-            message = "Go back to the WiFi login page — it'll finish confirming there.";
+            message = "Taking you back to try again…";
           }
         } catch (err) {
           console.error("return-page reconcile error", err);
         }
       }
 
-      // Auto-closes — this tab only exists to host Pesapal's checkout; the
-      // captive portal tab that opened it is already polling and will
-      // connect the customer the moment it sees "completed", so there's
-      // nothing more for the customer to do here once this closes.
+      // Send the browser straight back to the captive portal's own
+      // login.html (served locally by the router — origin came from
+      // window.location.origin captured before we ever left it), carrying
+      // the transaction id so it can resume polling immediately instead of
+      // showing the plan list again. Without a known origin (shouldn't
+      // happen from a real captive-portal purchase, but don't hard-fail),
+      // just show the status message with nothing to navigate to.
+      const target = origin && txnId ? `${origin}/login.html?transactionId=${txnId}` : null;
+
       const html = `<!doctype html><html><head><meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1"/>
         <title>${org.name}</title>
+        ${target ? `<meta http-equiv="refresh" content="0; url=${target}">` : ""}
         <style>
           body { font-family: -apple-system, Segoe UI, sans-serif; background: ${org.brand_primary_color}; color: #fff;
                  display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
@@ -172,7 +186,7 @@ Deno.serve(async (req) => {
           <h2>${heading}</h2>
           <p>${message}</p>
         </div>
-        <script>setTimeout(function () { window.close(); }, 1800);</script>
+        ${target ? `<script>window.location.replace(${JSON.stringify(target)});</script>` : ""}
         </body></html>`;
       return new Response(html, { headers: { "Content-Type": "text/html" } });
     }

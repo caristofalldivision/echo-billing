@@ -72,21 +72,10 @@ $("#back-to-plans").addEventListener("click", () => {
   $("#plans").classList.remove("hidden");
 });
 
-let paymentWindow = null;
-
 $("#purchase-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const phone = $("#phone").value.trim();
   if (!selectedPlan || !phone) return;
-
-  // Open synchronously, inside the click handler, with a blank URL — this is
-  // what keeps mobile popup blockers from killing it. We fill in the real
-  // URL once we have it, after the async purchase call below. Opening it
-  // (instead of a full-page redirect) is what actually gets the customer to
-  // Pesapal's hosted page — that page is what triggers the M-Pesa STK push,
-  // there's no separate API call for that — while leaving this tab alive to
-  // keep polling and auto-connect the instant payment completes.
-  paymentWindow = window.open("", "_blank", "width=430,height=720");
 
   $("#purchase-form").classList.add("hidden");
   $("#purchase-status").classList.remove("hidden");
@@ -98,28 +87,44 @@ $("#purchase-form").addEventListener("submit", async (e) => {
     const res = await fetch(`${PORTAL_API}/purchase`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ planId: selectedPlan.id, phone }),
+      body: JSON.stringify({ planId: selectedPlan.id, phone, returnOrigin: window.location.origin }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? "Could not start payment");
 
     if (data.redirectUrl) {
-      if (paymentWindow) {
-        paymentWindow.location.href = data.redirectUrl;
-      } else {
-        // Popup got blocked anyway — fall back to a full-page redirect so
-        // payment can still happen, even though we lose live polling until
-        // they navigate back.
-        window.location.href = data.redirectUrl;
-        return;
-      }
+      // Full-page redirect, not a popup — MikroTik hotspot logins are
+      // typically opened inside the OS's restricted captive-portal
+      // mini-browser (Apple's Captive Network Assistant, Android's
+      // equivalent), which is known to block/mishandle window.open(). This
+      // page is what actually triggers the M-Pesa STK push; there's no
+      // separate API call for that. Pesapal's own callback_url (built
+      // server-side with the origin we just sent) is what brings the
+      // browser back here afterward — see the transactionId handling below.
+      window.location.href = data.redirectUrl;
+      return;
     }
     pollTransaction(data.transactionId);
   } catch (err) {
-    if (paymentWindow) paymentWindow.close();
     showFailure();
   }
 });
+
+// Resuming after the Pesapal round-trip — the return page sends us back to
+// this same login.html with ?transactionId=..., so pick up polling
+// immediately instead of showing the plan list again.
+const resumeTransactionId = new URLSearchParams(window.location.search).get("transactionId");
+if (resumeTransactionId) {
+  document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+  document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
+  $("#panel-buy").classList.add("active");
+  $("#plans").classList.add("hidden");
+  $("#purchase-status").classList.remove("hidden");
+  $("#status-text").textContent = "Confirming your payment…";
+  $("#status-subtext").textContent = "Almost there.";
+  $("#status-elapsed").textContent = "";
+  pollTransaction(resumeTransactionId);
+}
 
 // Pesapal gives us no intermediate "STK sent" / "PIN entered" events — only
 // a final status — so these stages are elapsed-time-based reassurance, not
@@ -167,7 +172,6 @@ function pollTransaction(transactionId) {
 }
 
 function showSuccess(voucherCode) {
-  if (paymentWindow && !paymentWindow.closed) paymentWindow.close();
   $("#purchase-status").classList.add("hidden");
   $("#purchase-success").classList.remove("hidden");
   $("#success-code").textContent = voucherCode ?? "—";
@@ -177,7 +181,6 @@ function showSuccess(voucherCode) {
 }
 
 function showFailure() {
-  if (paymentWindow && !paymentWindow.closed) paymentWindow.close();
   $("#purchase-status").classList.add("hidden");
   $("#purchase-failed").classList.remove("hidden");
 }
