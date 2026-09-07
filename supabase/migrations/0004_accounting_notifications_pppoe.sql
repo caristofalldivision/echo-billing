@@ -1,15 +1,21 @@
 -- Echo billing system — financial ledger (refunds), notifications, and
 -- PPPoE account creation (previously nothing created the first account).
+--
+-- Idempotent throughout — safe to re-run from the top after a partial
+-- failure (IF NOT EXISTS / IF EXISTS / CREATE OR REPLACE everywhere; the
+-- two spots Postgres has no such clause for — ADD CONSTRAINT and ALTER
+-- PUBLICATION ... ADD TABLE — are guarded with DROP IF EXISTS first or a
+-- DO block that swallows the "already there" error).
 
 -- ---------------------------------------------------------------------------
 -- transactions — refund support, for "accounting to the last cent"
 -- ---------------------------------------------------------------------------
 alter table transactions
-  add column refund_reason   text,
-  add column refunded_amount numeric(10, 2),
-  add column refunded_at     timestamptz;
+  add column if not exists refund_reason   text,
+  add column if not exists refunded_amount numeric(10, 2),
+  add column if not exists refunded_at     timestamptz;
 
-alter table transactions drop constraint transactions_status_check;
+alter table transactions drop constraint if exists transactions_status_check;
 alter table transactions add constraint transactions_status_check
   check (status in ('pending', 'completed', 'failed', 'cancelled', 'refunded'));
 
@@ -18,7 +24,7 @@ alter table transactions add constraint transactions_status_check
 -- Read state is shared across the org's admins for now, not per-admin —
 -- simplest thing that works for a small team; revisit if that ever chafes.
 -- ---------------------------------------------------------------------------
-create table notifications (
+create table if not exists notifications (
   id            uuid primary key default gen_random_uuid(),
   org_id        uuid not null references organizations(id) on delete cascade,
   type          text not null check (type in (
@@ -35,17 +41,24 @@ create table notifications (
   created_at    timestamptz not null default now()
 );
 
-create index notifications_org_id_created_idx on notifications(org_id, created_at desc);
-create index notifications_org_id_unread_idx on notifications(org_id) where read_at is null;
+create index if not exists notifications_org_id_created_idx on notifications(org_id, created_at desc);
+create index if not exists notifications_org_id_unread_idx on notifications(org_id) where read_at is null;
 
 alter table notifications enable row level security;
 
+drop policy if exists "org member read" on notifications;
 create policy "org member read" on notifications for select
   using (org_id = current_org_id());
+drop policy if exists "org member mark read" on notifications;
 create policy "org member mark read" on notifications for update
   using (org_id = current_org_id()) with check (org_id = current_org_id());
 
-alter publication supabase_realtime add table notifications;
+do $$
+begin
+  alter publication supabase_realtime add table notifications;
+exception when others then
+  raise notice 'notifications already in supabase_realtime publication, skipping (%)', sqlerrm;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- Notification-generating triggers — centralized here rather than scattered
