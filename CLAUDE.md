@@ -107,18 +107,24 @@ the admin portal's Settings pages), set via `supabase secrets set` for
 `radius-service` itself — never in `fly.toml`'s `[env]` block or a
 `.env` that isn't gitignored.
 
-**Two separate design systems — don't mix them.** `packages/doodles` (flat
-brand colors, rounded/soft, hand-drawn SVG doodles) is the **captive
-portal's** identity only. `apps/admin` (and `apps/landing`) use
-`packages/signal` instead — De Stijl/Neoplasticism: flat primary colors,
-black rule lines, sharp corners, explicitly zero shadows/blur
-(`packages/signal/tailwind-preset.js` sets `boxShadow`/`backdropBlur` to
-`none`). Add missing tokens to whichever package the surface actually
-consumes rather than hardcoding hex values or reaching for the other
-package's tokens — a "make the admin portal look more like the captive
-portal" ask should pull the *idea* (e.g. a colorful divider) across and
-re-express it in signal's own flat/sharp language, not import doodle assets
-into `apps/admin`, which doesn't even depend on `@echo/doodles`.
+**Two design systems, both loaded into `apps/admin`, used for different
+things — don't conflate them.** `apps/admin/tailwind.config.js` loads
+*both* `@echo/doodles/tailwind-preset.js` and
+`@echo/signal/tailwind-preset.js` as presets, so tokens from either are
+available anywhere in the app. `packages/signal` (flat primary colors,
+black rule lines, sharp corners, explicitly zero shadows/blur —
+`boxShadow`/`backdropBlur` set to `none`) is the admin portal's **own**
+chrome/UI identity — sidebar, cards, buttons, the dashboard itself.
+`packages/doodles` (flat brand colors, rounded/soft, hand-drawn SVG
+doodles) is the **captive portal's** identity, and inside `apps/admin` it
+exists specifically for previewing/rendering what the captive portal will
+look like — see `portal-theme/page.tsx`'s live-preview panel, which
+deliberately uses doodle tokens (`rounded-echo`, `font-display`,
+`text-echo-muted`) because it's showing the admin what a *customer* sees,
+not the admin's own UI. When building a genuinely new admin-facing surface
+(a new page, the sidebar, etc.), reach for `signal` tokens — that's the
+admin's real identity. Doodle tokens belong in `apps/admin` only where the
+surface's whole job is representing the captive portal.
 
 **Edge functions requiring a Supabase JWT must call `getCallerAdmin()`, not
 just rely on `verify_jwt = true`.** The gateway's JWT check only proves the
