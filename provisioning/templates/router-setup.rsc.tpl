@@ -143,13 +143,21 @@ set use-radius=yes accounting=yes interim-update=5m
   add name="{{MIKROTIK_API_USERNAME}}" password="{{MIKROTIK_API_PASSWORD}}" group=echo-api }
 
 # --- 9. Captive portal files — fetched onto the router itself ----------
-/tool fetch url="{{CAPTIVE_PORTAL_BASE_URL}}/login.html" dst-path="hotspot/login.html" mode=https
-/tool fetch url="{{CAPTIVE_PORTAL_BASE_URL}}/redirect.html" dst-path="hotspot/redirect.html" mode=https
-/tool fetch url="{{CAPTIVE_PORTAL_BASE_URL}}/assets/app.css" dst-path="hotspot/assets/app.css" mode=https
-/tool fetch url="{{CAPTIVE_PORTAL_BASE_URL}}/assets/app.js" dst-path="hotspot/assets/app.js" mode=https
-/tool fetch url="{{CAPTIVE_PORTAL_BASE_URL}}/assets/logo.svg" dst-path="hotspot/assets/logo.svg" mode=https
-/tool fetch url="{{CAPTIVE_PORTAL_BASE_URL}}/assets/doodle-waves.svg" dst-path="hotspot/assets/doodle-waves.svg" mode=https
-/tool fetch url="{{CAPTIVE_PORTAL_BASE_URL}}/assets/success.svg" dst-path="hotspot/assets/success.svg" mode=https
+# dst-path is "flash/hotspot/..." (not bare "hotspot/...") because the
+# hotspot profile's html-directory=hotspot (section 5) resolves to the real
+# on-disk flash/hotspot/ — RouterOS auto-installs its own bundled default
+# skin there the instant `/ip hotspot add` runs. A bare "hotspot/..."
+# dst-path was found (RB760iGS, RouterOS 7.x) to land in a different,
+# sibling top-level directory the hotspot server never reads from — files
+# fetched with no errors, router silently kept serving MikroTik's own
+# default login page instead of ours.
+/tool fetch url="{{CAPTIVE_PORTAL_BASE_URL}}/login.html" dst-path="flash/hotspot/login.html" mode=https
+/tool fetch url="{{CAPTIVE_PORTAL_BASE_URL}}/redirect.html" dst-path="flash/hotspot/redirect.html" mode=https
+/tool fetch url="{{CAPTIVE_PORTAL_BASE_URL}}/assets/app.css" dst-path="flash/hotspot/assets/app.css" mode=https
+/tool fetch url="{{CAPTIVE_PORTAL_BASE_URL}}/assets/app.js" dst-path="flash/hotspot/assets/app.js" mode=https
+/tool fetch url="{{CAPTIVE_PORTAL_BASE_URL}}/assets/logo.svg" dst-path="flash/hotspot/assets/logo.svg" mode=https
+/tool fetch url="{{CAPTIVE_PORTAL_BASE_URL}}/assets/doodle-waves.svg" dst-path="flash/hotspot/assets/doodle-waves.svg" mode=https
+/tool fetch url="{{CAPTIVE_PORTAL_BASE_URL}}/assets/success.svg" dst-path="flash/hotspot/assets/success.svg" mode=https
 
 # --- 10. Heartbeat — periodic check-in so Echo knows this device is alive
 /system scheduler

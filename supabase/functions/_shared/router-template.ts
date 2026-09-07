@@ -47,9 +47,18 @@ export interface RouterScriptParams {
 }
 
 export function renderRouterScript(p: RouterScriptParams): string {
+  // dst-path is deliberately "flash/hotspot/..." and not the bare "hotspot/...".
+  // The hotspot profile's html-directory=hotspot (section 5 below) resolves to
+  // the real on-disk flash/hotspot/ — that's where RouterOS auto-installs its
+  // own bundled default skin the instant `/ip hotspot add` runs. A bare
+  // "hotspot/..." dst-path was found (on a RB760iGS, RouterOS 7.x) to land in
+  // a different, sibling top-level directory that the hotspot server never
+  // reads from — files fetched fine, router silently kept serving MikroTik's
+  // own default login page. Explicit flash/ prefix keeps both sides pointed
+  // at the same physical location regardless of board/RouterOS quirks.
   const fetchLines = CAPTIVE_PORTAL_FILES.map(
     (f) =>
-      `/tool fetch url="${p.captivePortalBaseUrl}/${f}" dst-path="hotspot/${f}" mode=https`,
+      `/tool fetch url="${p.captivePortalBaseUrl}/${f}" dst-path="flash/hotspot/${f}" mode=https`,
   ).join("\n");
 
   return `# ============================================================
