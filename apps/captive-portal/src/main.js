@@ -80,6 +80,8 @@ $("#purchase-form").addEventListener("submit", async (e) => {
   $("#purchase-form").classList.add("hidden");
   $("#purchase-status").classList.remove("hidden");
   $("#status-text").textContent = "Waiting for M-Pesa confirmation…";
+  $("#status-subtext").textContent = "Check your phone for the STK push prompt — usually takes 5–15 seconds.";
+  $("#status-elapsed").textContent = "";
 
   try {
     const res = await fetch(`${PORTAL_API}/purchase`, {
@@ -95,11 +97,30 @@ $("#purchase-form").addEventListener("submit", async (e) => {
   }
 });
 
+// Pesapal gives us no intermediate "STK sent" / "PIN entered" events — only
+// a final status — so these stages are elapsed-time-based reassurance, not
+// real backend progress. Wording says "usually"/"taking longer" rather than
+// claiming precision we don't have.
+const WAIT_STAGES = [
+  { afterMs: 0, text: "Check your phone for the STK push prompt — usually takes 5–15 seconds." },
+  { afterMs: 12000, text: "Still waiting — enter your M-Pesa PIN when prompted." },
+  { afterMs: 30000, text: "Taking a little longer than usual — hang tight." },
+  { afterMs: 70000, text: "This is taking a while. Didn't get a prompt? You can keep waiting or try again shortly." },
+];
+
 function pollTransaction(transactionId) {
   const startedAt = Date.now();
+  const tick = setInterval(() => {
+    const elapsedMs = Date.now() - startedAt;
+    const stage = [...WAIT_STAGES].reverse().find((s) => elapsedMs >= s.afterMs);
+    if (stage) $("#status-subtext").textContent = stage.text;
+    $("#status-elapsed").textContent = `${Math.floor(elapsedMs / 1000)}s`;
+  }, 1000);
+
   const interval = setInterval(async () => {
     if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
       clearInterval(interval);
+      clearInterval(tick);
       showFailure();
       return;
     }
@@ -108,9 +129,11 @@ function pollTransaction(transactionId) {
       const data = await res.json();
       if (data.status === "completed") {
         clearInterval(interval);
+        clearInterval(tick);
         showSuccess(data.voucherCode);
       } else if (data.status === "failed" || data.status === "cancelled") {
         clearInterval(interval);
+        clearInterval(tick);
         showFailure();
       }
     } catch {

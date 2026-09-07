@@ -30,12 +30,34 @@ export default function DevicesPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [bootstrapCopied, setBootstrapCopied] = useState(false);
+  const [waitingSince, setWaitingSince] = useState<number | null>(null);
+  const [elapsedSec, setElapsedSec] = useState(0);
 
   async function copyBootstrap() {
     await navigator.clipboard.writeText(bootstrap);
     setBootstrapCopied(true);
+    setWaitingSince(Date.now());
     setTimeout(() => setBootstrapCopied(false), 2000);
   }
+
+  // Once the admin copies the bootstrap, poll the device's own row so the
+  // panel can show it flipping from "pending" to "linked" live instead of
+  // leaving them staring at a static script with no feedback — the router's
+  // first heartbeat (fires right after provisioning, then every 5m) is what
+  // actually flips this.
+  useEffect(() => {
+    if (!waitingSince || !scriptFor) return;
+    const device = devices.find((d) => d.id === scriptFor);
+    if (device?.status === "linked") return;
+
+    const poll = setInterval(load, 4000);
+    const tick = setInterval(() => setElapsedSec(Math.floor((Date.now() - waitingSince) / 1000)), 1000);
+    return () => {
+      clearInterval(poll);
+      clearInterval(tick);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waitingSince, scriptFor, devices.find((d) => d.id === scriptFor)?.status]);
 
   async function load() {
     setLoadError(null);
@@ -95,6 +117,8 @@ export default function DevicesPage() {
     setScript(data.script);
     setBootstrap(data.bootstrap ?? "");
     setShowFullScript(false);
+    setWaitingSince(null);
+    setElapsedSec(0);
     load();
   }
 
@@ -112,6 +136,8 @@ export default function DevicesPage() {
     setScriptError(null);
     setShowFullScript(false);
     setScript("");
+    setWaitingSince(null);
+    setElapsedSec(0);
     setBootstrap(
       `/system ntp client set enabled=yes\n:if ([:len [/system ntp client servers find address="pool.ntp.org"]] = 0) do={ /system ntp client servers add address=pool.ntp.org }\n:delay 5s\n/tool fetch url="${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/provisioning-fetch?token=${device.provisioning_token}" dst-path="echo-setup.rsc" mode=https\n/import file-name=echo-setup.rsc\n`,
     );
@@ -279,6 +305,31 @@ export default function DevicesPage() {
                   </button>
                 </div>
               </div>
+
+              {waitingSince && (() => {
+                const device = devices.find((d) => d.id === scriptFor);
+                const linked = device?.status === "linked";
+                return (
+                  <div
+                    className={`rounded-tight border p-3 text-xs ${
+                      linked
+                        ? "border-signal-pulse/30 bg-signal-pulse-soft text-signal-pulse"
+                        : "border-signal-border bg-signal-ink-faint/10 text-signal-ink-dim"
+                    }`}
+                  >
+                    {linked ? (
+                      <p className="font-bold">✓ Linked — this router checked in and is live.</p>
+                    ) : (
+                      <p>
+                        Waiting for the router to check in
+                        {elapsedSec > 0 && <span className="font-mono tabular-nums"> — {elapsedSec}s</span>}
+                        . Runs the script, then reports back on its first heartbeat — usually 10–60s after{" "}
+                        <code>/import</code> finishes, not the 5-minute heartbeat interval.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
 
               <div className="rounded-tight border border-signal-border bg-signal-voucher-soft p-3 text-xs text-signal-ink-dim">
                 <p className="mb-1 font-bold text-signal-ink">If it doesn&apos;t show &quot;linked&quot; within ~5 minutes:</p>
