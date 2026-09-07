@@ -86,7 +86,7 @@ $("#purchase-form").addEventListener("submit", async (e) => {
   // Pesapal's hosted page — that page is what triggers the M-Pesa STK push,
   // there's no separate API call for that — while leaving this tab alive to
   // keep polling and auto-connect the instant payment completes.
-  paymentWindow = window.open("", "_blank");
+  paymentWindow = window.open("", "_blank", "width=430,height=720");
 
   $("#purchase-form").classList.add("hidden");
   $("#purchase-status").classList.remove("hidden");

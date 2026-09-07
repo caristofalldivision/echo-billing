@@ -12,6 +12,7 @@
 import { handlePreflight, withCors } from "../_shared/cors.ts";
 import { supabaseAdmin, getOrgSettings } from "../_shared/supabase.ts";
 import { initiatePurchase } from "../_shared/purchase.ts";
+import { reconcileTransaction } from "../_shared/fulfillment.ts";
 
 Deno.serve(async (req) => {
   const preflight = handlePreflight(req);
@@ -61,13 +62,39 @@ Deno.serve(async (req) => {
       const supabase = supabaseAdmin();
       const { data: txn, error } = await supabase
         .from("transactions")
-        .select("status, voucher_id, vouchers(code)")
+        .select("*, plans(*), customers(*), vouchers(code)")
         .eq("id", transactionId)
         .single();
       if (error || !txn) return withCors({ error: "Transaction not found" }, { status: 404 });
+
+      // Don't just passively read the DB — sandbox/demo Pesapal accounts
+      // have been observed to never call the IPN webhook at all, which
+      // would otherwise leave a customer who genuinely paid stuck polling
+      // a transaction that never flips to "completed". Actively re-verify
+      // with Pesapal on every poll while still pending, same idempotent
+      // re-verified fulfillment path the webhook uses — this is what makes
+      // confirmation land within one poll interval instead of depending on
+      // a webhook that may not arrive.
+      if (txn.status !== "completed" && txn.status !== "failed") {
+        try {
+          const org = await getOrgSettings(txn.org_id);
+          await reconcileTransaction(supabase, org, txn);
+        } catch (err) {
+          console.error("status reconcile error", err);
+          // Swallow — a failed active re-check shouldn't break polling,
+          // the client just tries again on the next interval.
+        }
+      }
+
+      const { data: fresh } = await supabase
+        .from("transactions")
+        .select("status, vouchers(code)")
+        .eq("id", transactionId)
+        .single();
+
       return withCors({
-        status: txn.status,
-        voucherCode: (txn as unknown as { vouchers: { code: string } | null }).vouchers?.code,
+        status: fresh?.status ?? txn.status,
+        voucherCode: (fresh as unknown as { vouchers: { code: string } | null } | null)?.vouchers?.code,
       });
     }
 
@@ -91,6 +118,48 @@ Deno.serve(async (req) => {
 
     if (route === "return" && req.method === "GET") {
       const org = await getOrgSettings();
+      const ref = url.searchParams.get("ref");
+
+      // This page is what Pesapal redirects the payment popup to. It's a
+      // third chance to reconcile (alongside the IPN webhook and the
+      // captive portal's own poll) — sandbox/demo accounts have been seen
+      // to never call the webhook, so checking right here, on the one
+      // request we know definitely happens, matters. Best-effort: a failed
+      // reconcile here still leaves the client's poll as a backstop.
+      let heading = "Payment received";
+      let message = "Go back to the WiFi login page — your access code will be there or arriving by SMS shortly.";
+      if (ref) {
+        try {
+          const supabase = supabaseAdmin();
+          const { data: txn } = await supabase
+            .from("transactions")
+            .select("*, plans(*), customers(*)")
+            .eq("pesapal_merchant_reference", ref)
+            .single();
+          if (txn && txn.status !== "completed" && txn.status !== "failed") {
+            await reconcileTransaction(supabase, org, txn);
+          }
+          const { data: fresh } = await supabase
+            .from("transactions")
+            .select("status")
+            .eq("pesapal_merchant_reference", ref)
+            .single();
+          if (fresh?.status === "failed") {
+            heading = "Payment didn't go through";
+            message = "Go back to the WiFi login page to try again.";
+          } else if (fresh?.status !== "completed") {
+            heading = "Confirming payment…";
+            message = "Go back to the WiFi login page — it'll finish confirming there.";
+          }
+        } catch (err) {
+          console.error("return-page reconcile error", err);
+        }
+      }
+
+      // Auto-closes — this tab only exists to host Pesapal's checkout; the
+      // captive portal tab that opened it is already polling and will
+      // connect the customer the moment it sees "completed", so there's
+      // nothing more for the customer to do here once this closes.
       const html = `<!doctype html><html><head><meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1"/>
         <title>${org.name}</title>
@@ -100,9 +169,11 @@ Deno.serve(async (req) => {
           .card { background: rgba(255,255,255,0.12); padding: 32px; border-radius: 20px; max-width: 320px; }
         </style></head>
         <body><div class="card">
-          <h2>Payment received</h2>
-          <p>Go back to the WiFi login page — your access code will be there or arriving by SMS shortly.</p>
-        </div></body></html>`;
+          <h2>${heading}</h2>
+          <p>${message}</p>
+        </div>
+        <script>setTimeout(function () { window.close(); }, 1800);</script>
+        </body></html>`;
       return new Response(html, { headers: { "Content-Type": "text/html" } });
     }
 
