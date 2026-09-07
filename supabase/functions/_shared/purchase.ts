@@ -66,15 +66,25 @@ export async function initiatePurchase(input: InitiatePurchaseInput) {
     },
   );
 
-  const returnParams = new URLSearchParams({ ref: merchantReference });
-  if (input.returnOrigin) returnParams.set("origin", input.returnOrigin);
+  // Redirect straight back to the captive portal's own login.html when we
+  // know its address (always true for a real captive-portal purchase) —
+  // no intermediate page. The OS-level captive-portal mini-browser most
+  // phones open a hotspot login in (Apple's Captive Network Assistant,
+  // Android's equivalent) is known to handle chained redirects/meta-refresh/
+  // JS navigation badly; every extra hop is a place for it to strand the
+  // customer on an unrendered page instead of getting them back. Falls back
+  // to the portal-api/return page only when we don't have an origin (not
+  // expected from the real flow, but keeps this from hard-failing).
+  const callbackUrl = input.returnOrigin
+    ? `${input.returnOrigin}/login.html?transactionId=${txn.id}`
+    : `${functionsBase}/portal-api/return?ref=${merchantReference}`;
 
   const order = await submitOrder(org, token, {
     merchantReference,
     amount: Number(plan.price),
     currency: plan.currency,
     description: `Echo — ${plan.name}`,
-    callbackUrl: `${functionsBase}/portal-api/return?${returnParams.toString()}`,
+    callbackUrl,
     ipnId,
     phone: input.phone,
     email: input.email,
