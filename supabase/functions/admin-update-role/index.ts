@@ -48,6 +48,15 @@ Deno.serve(async (req) => {
     const { error } = await admin.from("admin_users").update({ role }).eq("id", userId);
     if (error) throw error;
 
+    await admin.from("audit_log").insert({
+      org_id: caller.org_id,
+      admin_user_id: caller.id,
+      action: "admin_role_changed",
+      entity_type: "admin_users",
+      entity_id: userId,
+      metadata: { from: target.role, to: role },
+    });
+
     return withCors({ ok: true });
   } catch (err) {
     return withCors({ error: (err as Error).message }, { status: 500 });

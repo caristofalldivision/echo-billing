@@ -101,6 +101,15 @@ Deno.serve(async (req) => {
     };
     await supabase.from("mikrotik_devices").update(updated).eq("id", device.id);
 
+    await supabase.from("audit_log").insert({
+      org_id: caller.org_id,
+      admin_user_id: caller.id,
+      action: device.wireguard_client_privkey ? "device_credentials_regenerated" : "device_credentials_generated",
+      entity_type: "mikrotik_devices",
+      entity_id: device.id,
+      metadata: { device_name: device.name },
+    });
+
     const functionsBaseUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1`;
 
     const script = renderRouterScript({

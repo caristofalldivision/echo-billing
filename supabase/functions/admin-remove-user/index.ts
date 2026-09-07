@@ -53,6 +53,15 @@ Deno.serve(async (req) => {
 
     await admin.auth.admin.deleteUser(userId).catch(() => {});
 
+    await admin.from("audit_log").insert({
+      org_id: caller.org_id,
+      admin_user_id: caller.id,
+      action: "admin_removed",
+      entity_type: "admin_users",
+      entity_id: userId,
+      metadata: { removed_role: target.role },
+    });
+
     return withCors({ ok: true });
   } catch (err) {
     return withCors({ error: (err as Error).message }, { status: 500 });
