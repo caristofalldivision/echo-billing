@@ -175,6 +175,14 @@ $("#voucher-form").addEventListener("submit", async (e) => {
       body: JSON.stringify({ code }),
     });
     const data = await res.json();
+    if (!res.ok) {
+      // Surface the real failure instead of falling through to "not found" —
+      // a 500 here (misconfigured secret, DB error, etc.) used to look
+      // identical to a genuinely nonexistent code, which made this
+      // impossible to debug from the customer-facing symptom alone.
+      messageEl.textContent = `Couldn't verify the code (${data.error ?? res.status}). Please try again.`;
+      return;
+    }
     if (data.valid) {
       messageEl.textContent = `Valid — ${data.plan.name}. Connecting…`;
       connectWithCode(code);

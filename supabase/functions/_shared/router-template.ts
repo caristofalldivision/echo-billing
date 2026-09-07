@@ -127,6 +127,19 @@ export function renderRouterScript(p: RouterScriptParams): string {
       /interface wireless set $i ssid=("Echo-" . $n) security-profile=echo-open disabled=no mode=ap-bridge }; \\
     :if ([:len [/interface bridge port find interface=$n]] = 0) do={ /interface bridge port add bridge=$hsBridge interface=$n } } }
 
+# --- 2b. NAT masquerade for the WAN interface — without this, hotspot
+#         clients authenticate fine (that part's handled by /ip hotspot
+#         itself) but their traffic to the real internet has no address
+#         translation and silently goes nowhere: DNS queries to 1.1.1.1/
+#         8.8.8.8 never get a reply back, so it looks like "connects but no
+#         internet" / "doesn't redirect to anything" from the client side.
+#         /ip hotspot add does NOT set this up — it's a general router NAT
+#         concern, not hotspot-specific, and nothing else in this script
+#         added it either.
+/ip firewall nat
+:if ([:len [find chain=srcnat out-interface=ether1 action=masquerade]] = 0) do={ \\
+  add chain=srcnat out-interface=ether1 action=masquerade comment=echo-wan-nat }
+
 # --- 3. DHCP for the hotspot LAN — only if this bridge has no address
 #        yet (i.e. we created it fresh). A pre-existing bridge is assumed
 #        to already have working DHCP (true for factory-default config). -
