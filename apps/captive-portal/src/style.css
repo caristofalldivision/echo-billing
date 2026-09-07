@@ -1,9 +1,20 @@
 :root {
+  /* Dynamic — overridden live by applyBranding() from the admin's theme settings */
   --primary: #5b5fef;
   --secondary: #ffb84d;
-  --ink: #1e1b2e;
-  --paper: #faf9f4;
-  --muted: #6b7280;
+
+  /* Fixed neutrals — warm rather than cool, sets the "aura" independent of brand color */
+  --ink: #241a15;
+  --paper: #fbf4e8;
+  --paper-2: #f4e9d6;
+  --muted: #7a6a5c;
+
+  /* Fixed accents — African-textile-inspired palette, decorative only, never used for
+     functional UI (buttons/links stay on --primary so admin rebranding always works) */
+  --terracotta: #c1502e;
+  --ochre: #e0a53c;
+  --teal: #1f6f68;
+  --clay: #8c4a3d;
 }
 
 * {
@@ -12,7 +23,7 @@
 
 body {
   margin: 0;
-  font-family: "Inter", "Segoe UI", sans-serif;
+  font-family: ui-rounded, "Inter", "Segoe UI", sans-serif;
   color: var(--ink);
   background: var(--paper);
   min-height: 100vh;
@@ -20,26 +31,55 @@ body {
   overflow-x: hidden;
 }
 
+.bg-glow {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(480px 320px at 50% -10%, color-mix(in srgb, var(--primary) 16%, transparent), transparent 70%),
+    radial-gradient(360px 260px at 100% 20%, color-mix(in srgb, var(--ochre) 20%, transparent), transparent 70%),
+    radial-gradient(320px 240px at 0% 60%, color-mix(in srgb, var(--teal) 14%, transparent), transparent 70%);
+}
+
 .bg-doodle {
   position: fixed;
   inset: 0;
   background-repeat: no-repeat;
-  background-position: center 60px;
-  background-size: 140% auto;
-  opacity: 0.5;
+  background-position: center 80px;
+  background-size: 130% auto;
+  opacity: 0.4;
   z-index: 0;
   pointer-events: none;
+}
+
+/* Hand-drawn zigzag ribbon, mudcloth/kente-inspired — pure CSS, no extra asset files */
+.kente-strip {
+  position: relative;
+  z-index: 1;
+  height: 10px;
+  margin: 4px 0;
+  opacity: 0.85;
+  background-image:
+    repeating-linear-gradient(135deg, var(--terracotta) 0 6px, transparent 6px 12px),
+    repeating-linear-gradient(45deg, var(--ochre) 0 6px, transparent 6px 12px),
+    linear-gradient(90deg, var(--teal), var(--terracotta), var(--ochre), var(--teal));
+  background-size: 16px 10px, 16px 10px, 100% 100%;
+  background-blend-mode: normal, normal, normal;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  border-radius: 999px;
 }
 
 .shell {
   position: relative;
   z-index: 1;
-  max-width: 420px;
+  max-width: 440px;
   margin: 0 auto;
-  padding: 32px 20px 24px;
+  padding: 40px 22px 28px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 22px;
   min-height: 100vh;
 }
 
@@ -48,50 +88,78 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+}
+
+.logo-ring {
+  height: 76px;
+  width: 76px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--primary) 14%, white), color-mix(in srgb, var(--ochre) 18%, white));
+  box-shadow:
+    0 14px 30px -14px color-mix(in srgb, var(--primary) 55%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
 .logo {
-  height: 56px;
-  width: 56px;
+  height: 44px;
+  width: 44px;
 }
 
 .header h1 {
-  font-family: "Baloo 2", sans-serif;
-  font-size: 26px;
-  margin: 4px 0 0;
+  font-family: ui-rounded, "Inter", "Segoe UI", sans-serif;
+  font-weight: 800;
+  font-size: 28px;
+  letter-spacing: -0.02em;
+  margin: 6px 0 0;
+  color: var(--ink);
+}
+
+.header h1 .accent {
   color: var(--primary);
 }
 
 .tagline {
   margin: 0;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 14.5px;
+  max-width: 300px;
 }
 
 .tabs {
   display: flex;
   background: #fff;
   border-radius: 999px;
-  padding: 4px;
-  box-shadow: 0 6px 20px -10px rgba(30, 27, 46, 0.25);
+  padding: 5px;
+  box-shadow:
+    0 10px 26px -14px rgba(36, 26, 21, 0.35),
+    inset 0 0 0 1px rgba(36, 26, 21, 0.04);
 }
 
 .tab {
   flex: 1;
   border: none;
   background: transparent;
-  padding: 10px 12px;
+  padding: 11px 12px;
   border-radius: 999px;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 14px;
   color: var(--muted);
   cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease;
+}
+
+.tab:active {
+  transform: scale(0.97);
 }
 
 .tab.active {
-  background: var(--primary);
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 70%, var(--teal)));
   color: #fff;
+  box-shadow: 0 8px 18px -8px color-mix(in srgb, var(--primary) 65%, transparent);
 }
 
 .panel {
@@ -102,6 +170,18 @@ body {
 
 .panel.active {
   display: flex;
+  animation: rise 0.25s ease both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .plans {
@@ -111,37 +191,66 @@ body {
 }
 
 .plan-card {
+  position: relative;
   background: #fff;
   border-radius: 20px;
-  padding: 16px 18px;
+  padding: 16px 18px 16px 22px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 10px 30px -16px rgba(30, 27, 46, 0.3);
+  gap: 12px;
+  box-shadow: 0 12px 28px -18px rgba(36, 26, 21, 0.4);
   border: 2px solid transparent;
   cursor: pointer;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  overflow: hidden;
+}
+
+.plan-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: var(--terracotta);
+}
+
+.plan-card:nth-of-type(3n + 2)::before {
+  background: var(--ochre);
+}
+
+.plan-card:nth-of-type(3n + 3)::before {
+  background: var(--teal);
 }
 
 .plan-card:hover {
   border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 16px 32px -16px color-mix(in srgb, var(--primary) 35%, rgba(36, 26, 21, 0.4));
 }
 
 .plan-card .plan-name {
-  font-weight: 700;
-  font-family: "Baloo 2", sans-serif;
+  font-weight: 800;
+  font-family: ui-rounded, "Inter", sans-serif;
+  font-size: 15.5px;
 }
 
 .plan-card .plan-meta {
   color: var(--muted);
   font-size: 13px;
+  margin-top: 2px;
 }
 
 .plan-card .plan-price {
-  font-family: "Baloo 2", sans-serif;
-  font-weight: 700;
-  color: var(--primary);
-  font-size: 18px;
+  font-family: ui-rounded, "Inter", sans-serif;
+  font-weight: 800;
+  color: #fff;
+  font-size: 14.5px;
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 65%, var(--teal)));
+  padding: 6px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
 form {
@@ -152,31 +261,53 @@ form {
 
 label {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--muted);
 }
 
 input {
-  border: 1.5px solid #e0e1fd;
+  border: 1.5px solid var(--paper-2);
+  background: #fff;
   border-radius: 14px;
-  padding: 13px 14px;
+  padding: 14px 15px;
   font-size: 15px;
   outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 input:focus {
   border-color: var(--primary);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 14%, transparent);
 }
 
 .btn-primary {
-  background: var(--primary);
+  position: relative;
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 68%, var(--teal)));
   color: #fff;
   border: none;
   border-radius: 999px;
-  padding: 14px;
-  font-weight: 700;
-  font-size: 15px;
+  padding: 15px;
+  font-weight: 800;
+  font-size: 15.5px;
+  letter-spacing: 0.01em;
   cursor: pointer;
+  box-shadow:
+    0 14px 26px -12px color-mix(in srgb, var(--primary) 65%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.2s ease;
+}
+
+.btn-primary:hover {
+  box-shadow:
+    0 18px 30px -12px color-mix(in srgb, var(--primary) 70%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.btn-primary:active {
+  transform: scale(0.97) translateY(1px);
+  box-shadow:
+    0 8px 16px -10px color-mix(in srgb, var(--primary) 60%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .btn-primary:disabled {
@@ -188,6 +319,7 @@ input:focus {
   border: none;
   color: var(--muted);
   font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
   padding: 4px;
 }
@@ -199,33 +331,33 @@ input:focus {
 
 .status-box {
   background: #fff;
-  border-radius: 20px;
-  padding: 28px 18px;
+  border-radius: 22px;
+  padding: 30px 20px;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  box-shadow: 0 10px 30px -16px rgba(30, 27, 46, 0.3);
+  box-shadow: 0 14px 32px -18px rgba(36, 26, 21, 0.4);
 }
 
 .status-box.success {
-  background: #e3fbef;
+  background: linear-gradient(180deg, #fff, color-mix(in srgb, var(--teal) 8%, #fff));
 }
 
 .status-box.failed {
-  background: #fee9e7;
+  background: linear-gradient(180deg, #fff, color-mix(in srgb, var(--terracotta) 8%, #fff));
 }
 
 .success-icon {
-  height: 64px;
-  width: 64px;
+  height: 68px;
+  width: 68px;
 }
 
 .spinner {
-  height: 32px;
-  width: 32px;
-  border: 4px solid #e0e1fd;
+  height: 34px;
+  width: 34px;
+  border: 4px solid var(--paper-2);
   border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -252,10 +384,13 @@ input:focus {
 .footer {
   margin-top: auto;
   text-align: center;
-  padding-top: 12px;
+  padding-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .terms {
   max-width: 340px;
-  margin: 4px auto 0;
+  margin: 0 auto;
 }

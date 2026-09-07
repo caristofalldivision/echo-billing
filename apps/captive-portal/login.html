@@ -7,14 +7,19 @@
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
+  <div class="bg-glow"></div>
   <div class="bg-doodle" style="background-image: url('/assets/doodle-waves.svg')"></div>
 
   <main class="shell">
     <header class="header">
-      <img src="/assets/logo.svg" alt="" class="logo" />
+      <div class="logo-ring">
+        <img src="/assets/logo.svg" alt="" class="logo" />
+      </div>
       <h1 id="headline">Get Connected</h1>
       <p id="tagline" class="tagline">Fast, affordable WiFi — pay and you're online in seconds.</p>
     </header>
+
+    <div class="kente-strip"></div>
 
     <nav class="tabs">
       <button class="tab active" data-tab="buy">Buy Access</button>
@@ -62,6 +67,7 @@
     </section>
 
     <footer class="footer">
+      <div class="kente-strip"></div>
       <p id="support-line" class="muted small"></p>
       <p id="terms" class="muted small terms"></p>
     </footer>

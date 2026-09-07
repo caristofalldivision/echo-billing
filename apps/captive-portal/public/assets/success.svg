@@ -1,9 +1,17 @@
 <svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- celebratory burst -->
+  <g stroke-linecap="round" opacity="0.55">
+    <path d="M100 8 L100 22" stroke="#E0A53C" stroke-width="4"/>
+    <path d="M42 26 L52 36" stroke="#C1502E" stroke-width="4"/>
+    <path d="M158 26 L148 36" stroke="#1F6F68" stroke-width="4"/>
+    <path d="M20 96 L34 96" stroke="#5B5FEF" stroke-width="4"/>
+    <path d="M180 96 L166 96" stroke="#E0A53C" stroke-width="4"/>
+  </g>
   <path d="M100 30 Q160 30 165 90 Q170 150 100 168 Q30 150 35 90 Q40 30 100 30 Z"
-        fill="#E3FBEF" stroke="#22C55E" stroke-width="3.5" stroke-linejoin="round"/>
-  <path d="M68 100 L92 124 L136 76" stroke="#22C55E" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M40 40 Q30 46 32 58" stroke="#FFB84D" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
-  <path d="M164 46 Q176 50 176 64" stroke="#5B5FEF" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
-  <circle cx="24" cy="110" r="4" fill="#FFB84D"/>
-  <circle cx="180" cy="130" r="5" fill="#5B5FEF" opacity="0.6"/>
+        fill="#E3FBEF" stroke="#1F6F68" stroke-width="3.5" stroke-linejoin="round"/>
+  <path d="M68 100 L92 124 L136 76" stroke="#1F6F68" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40 40 Q30 46 32 58" stroke="#E0A53C" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
+  <path d="M164 46 Q176 50 176 64" stroke="#5B5FEF" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+  <circle cx="24" cy="110" r="4" fill="#E0A53C"/>
+  <circle cx="180" cy="130" r="5" fill="#C1502E" opacity="0.7"/>
 </svg>
