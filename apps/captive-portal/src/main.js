@@ -72,10 +72,21 @@ $("#back-to-plans").addEventListener("click", () => {
   $("#plans").classList.remove("hidden");
 });
 
+let paymentWindow = null;
+
 $("#purchase-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const phone = $("#phone").value.trim();
   if (!selectedPlan || !phone) return;
+
+  // Open synchronously, inside the click handler, with a blank URL — this is
+  // what keeps mobile popup blockers from killing it. We fill in the real
+  // URL once we have it, after the async purchase call below. Opening it
+  // (instead of a full-page redirect) is what actually gets the customer to
+  // Pesapal's hosted page — that page is what triggers the M-Pesa STK push,
+  // there's no separate API call for that — while leaving this tab alive to
+  // keep polling and auto-connect the instant payment completes.
+  paymentWindow = window.open("", "_blank");
 
   $("#purchase-form").classList.add("hidden");
   $("#purchase-status").classList.remove("hidden");
@@ -91,8 +102,21 @@ $("#purchase-form").addEventListener("submit", async (e) => {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? "Could not start payment");
+
+    if (data.redirectUrl) {
+      if (paymentWindow) {
+        paymentWindow.location.href = data.redirectUrl;
+      } else {
+        // Popup got blocked anyway — fall back to a full-page redirect so
+        // payment can still happen, even though we lose live polling until
+        // they navigate back.
+        window.location.href = data.redirectUrl;
+        return;
+      }
+    }
     pollTransaction(data.transactionId);
   } catch (err) {
+    if (paymentWindow) paymentWindow.close();
     showFailure();
   }
 });
@@ -143,6 +167,7 @@ function pollTransaction(transactionId) {
 }
 
 function showSuccess(voucherCode) {
+  if (paymentWindow && !paymentWindow.closed) paymentWindow.close();
   $("#purchase-status").classList.add("hidden");
   $("#purchase-success").classList.remove("hidden");
   $("#success-code").textContent = voucherCode ?? "—";
@@ -152,6 +177,7 @@ function showSuccess(voucherCode) {
 }
 
 function showFailure() {
+  if (paymentWindow && !paymentWindow.closed) paymentWindow.close();
   $("#purchase-status").classList.add("hidden");
   $("#purchase-failed").classList.remove("hidden");
 }
