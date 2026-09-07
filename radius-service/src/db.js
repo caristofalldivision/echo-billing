@@ -62,8 +62,23 @@ async function upsertActiveSession(session) {
 }
 
 async function deleteActiveSession(deviceId, acctSessionId) {
+  // Was a plain delete — the row (and its bytes_in/bytes_out) just vanished
+  // on Stop, so "data used" could only ever reflect whoever happened to be
+  // online right now. Moves it into session_history instead, in one atomic
+  // statement so there's no window where the session exists in neither
+  // table if this crashes mid-way.
   await pool.query(
-    `delete from active_sessions where mikrotik_device_id = $1 and acct_session_id = $2`,
+    `with moved as (
+       delete from active_sessions
+        where mikrotik_device_id = $1 and acct_session_id = $2
+       returning *
+     )
+     insert into session_history
+       (org_id, mikrotik_device_id, session_type, username, framed_ip, mac_address,
+        acct_session_id, session_start, session_end, bytes_in, bytes_out)
+     select org_id, mikrotik_device_id, session_type, username, framed_ip, mac_address,
+            acct_session_id, session_start, now(), bytes_in, bytes_out
+       from moved`,
     [deviceId, acctSessionId],
   );
 }

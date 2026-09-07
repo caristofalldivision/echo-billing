@@ -44,6 +44,13 @@ export default function TransactionsPage() {
   const [refundError, setRefundError] = useState<string | null>(null);
   const [refunding, setRefunding] = useState(false);
 
+  const [compensateFor, setCompensateFor] = useState<Transaction | null>(null);
+  const [compensateReason, setCompensateReason] = useState("");
+  const [compensateError, setCompensateError] = useState<string | null>(null);
+  const [compensating, setCompensating] = useState(false);
+  const [compensateResult, setCompensateResult] = useState<{ code: string; phone: string | null } | null>(null);
+  const [compensateSmsStatus, setCompensateSmsStatus] = useState<string | null>(null);
+
   async function load() {
     const { data } = await supabase
       .from("transactions")
@@ -98,6 +105,44 @@ export default function TransactionsPage() {
     }
     setRefundFor(null);
     load();
+  }
+
+  function openCompensate(t: Transaction) {
+    setCompensateFor(t);
+    setCompensateReason("");
+    setCompensateError(null);
+    setCompensateResult(null);
+    setCompensateSmsStatus(null);
+  }
+
+  async function submitCompensate() {
+    if (!compensateFor) return;
+    setCompensating(true);
+    setCompensateError(null);
+    const { data, error } = await supabase.rpc("compensate_transaction_with_voucher", {
+      p_transaction_id: compensateFor.id,
+      p_reason: compensateReason || null,
+    });
+    setCompensating(false);
+    if (error) {
+      setCompensateError(error.message);
+      return;
+    }
+    setCompensateResult({ code: data.code, phone: compensateFor.phone });
+    load();
+  }
+
+  async function sendCompensationSms() {
+    if (!compensateResult?.phone) return;
+    setCompensateSmsStatus("Sending…");
+    const { error } = await supabase.functions.invoke("sms-send", {
+      body: {
+        to: compensateResult.phone,
+        message: `Echo: Here's a free WiFi code as an apology — ${compensateResult.code}.`,
+        template: "compensation",
+      },
+    });
+    setCompensateSmsStatus(error ? `Failed: ${error.message}` : "Sent ✓");
   }
 
   function exportCsv() {
@@ -198,9 +243,14 @@ export default function TransactionsPage() {
                   <td className="py-2 pr-4 font-mono tabular-nums text-signal-ink-dim">{new Date(t.created_at).toLocaleString()}</td>
                   <td className="py-2 pr-4">
                     {t.status === "completed" && (
-                      <button className="text-xs font-bold text-signal-alert" onClick={() => openRefund(t)}>
-                        Refund
-                      </button>
+                      <span className="flex gap-3">
+                        <button className="text-xs font-bold text-signal-brand" onClick={() => openCompensate(t)}>
+                          Compensate
+                        </button>
+                        <button className="text-xs font-bold text-signal-alert" onClick={() => openRefund(t)}>
+                          Refund
+                        </button>
+                      </span>
                     )}
                   </td>
                 </tr>
@@ -244,6 +294,65 @@ export default function TransactionsPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {compensateFor && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm border-2 border-signal-border bg-signal-surface-solid p-5">
+            {compensateResult ? (
+              <div className="flex flex-col gap-3">
+                <h2 className="text-lg font-bold text-signal-ink">Voucher issued</h2>
+                <p className="border-2 border-signal-border bg-signal-bg-elevated px-3 py-2 text-center font-mono text-lg font-bold text-signal-ink">
+                  {compensateResult.code}
+                </p>
+                {compensateResult.phone ? (
+                  <>
+                    <button className="btn-primary self-start" onClick={sendCompensationSms} disabled={compensateSmsStatus === "Sending…"}>
+                      Text this code to {compensateResult.phone}
+                    </button>
+                    {compensateSmsStatus && (
+                      <p className={`text-sm ${compensateSmsStatus.startsWith("Failed") ? "text-signal-alert" : "text-signal-pulse"}`}>
+                        {compensateSmsStatus}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-signal-ink-dim">No phone on file — relay this code to the customer manually.</p>
+                )}
+                <button className="btn-secondary self-start" onClick={() => setCompensateFor(null)}>
+                  Done
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <h2 className="mb-1 text-lg font-bold text-signal-ink">Compensate with a voucher</h2>
+                <p className="text-xs text-signal-ink-dim">
+                  {compensateFor.pesapal_merchant_reference} — issues a free voucher for the same plan without
+                  touching the payment record. Use this instead of a cash refund when the customer paid fine but
+                  something on our end (connection, provisioning) failed them.
+                </p>
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-signal-ink-faint">Reason (optional)</label>
+                  <input
+                    className="input"
+                    value={compensateReason}
+                    onChange={(e) => setCompensateReason(e.target.value)}
+                    placeholder="Didn't connect after payment…"
+                  />
+                </div>
+                {compensateError && <p className="text-sm text-signal-alert">{compensateError}</p>}
+                <div className="mt-1 flex justify-end gap-2">
+                  <button className="btn-secondary" onClick={() => setCompensateFor(null)} disabled={compensating}>
+                    Cancel
+                  </button>
+                  <button className="btn-primary" onClick={submitCompensate} disabled={compensating}>
+                    {compensating ? "Issuing…" : "Issue voucher"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

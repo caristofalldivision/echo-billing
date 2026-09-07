@@ -1,30 +1,81 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Customer, PppoeAccount } from "@/lib/supabase/types";
+import type { Customer, PppoeAccount, Voucher } from "@/lib/supabase/types";
 import { EmptyState } from "@/components/EmptyState";
+
+function formatBytes(bytes: number) {
+  if (bytes <= 0) return "0 MB";
+  const mb = bytes / 1_000_000;
+  if (mb < 1000) return `${mb.toFixed(1)} MB`;
+  return `${(mb / 1000).toFixed(2)} GB`;
+}
 
 export default function CustomersPage() {
   const supabase = createClient();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [pppoeByCustomer, setPppoeByCustomer] = useState<Record<string, PppoeAccount>>({});
+  const [vouchers, setVouchers] = useState<Voucher[]>([]);
+  const [usageByUsername, setUsageByUsername] = useState<Record<string, number>>({});
 
   useEffect(() => {
     (async () => {
-      const [{ data: c }, { data: p }] = await Promise.all([
+      const [{ data: c }, { data: p }, { data: v }, { data: live }, { data: history }] = await Promise.all([
         supabase.from("customers").select("*").order("created_at", { ascending: false }).limit(200),
         supabase.from("pppoe_accounts").select("*"),
+        supabase.from("vouchers").select("*").not("redeemed_by_customer_id", "is", null),
+        supabase.from("active_sessions").select("username, bytes_in, bytes_out"),
+        supabase
+          .from("session_history")
+          .select("username, bytes_in, bytes_out")
+          .order("session_end", { ascending: false })
+          .limit(5000),
       ]);
       setCustomers(c ?? []);
+      setVouchers(v ?? []);
       const map: Record<string, PppoeAccount> = {};
       (p ?? []).forEach((a) => {
         if (a.customer_id) map[a.customer_id] = a;
       });
       setPppoeByCustomer(map);
+
+      // Data used per "user" is only ever knowable per username (a voucher
+      // code or PPPoE login) — active_sessions has live totals, session_history
+      // has what's accumulated since a session actually ended (see
+      // radius-service/src/db.js's deleteActiveSession). Combine both, then
+      // resolve username -> customer below via redeemed vouchers / PPPoE
+      // account ownership.
+      const usage: Record<string, number> = {};
+      for (const row of [...(live ?? []), ...(history ?? [])] as {
+        username: string;
+        bytes_in: number;
+        bytes_out: number;
+      }[]) {
+        usage[row.username] = (usage[row.username] ?? 0) + Number(row.bytes_in) + Number(row.bytes_out);
+      }
+      setUsageByUsername(usage);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const vouchersByCustomer = useMemo(() => {
+    const map: Record<string, Voucher[]> = {};
+    for (const v of vouchers) {
+      if (!v.redeemed_by_customer_id) continue;
+      (map[v.redeemed_by_customer_id] ??= []).push(v);
+    }
+    return map;
+  }, [vouchers]);
+
+  function dataUsedFor(customerId: string) {
+    const account = pppoeByCustomer[customerId];
+    let total = account ? (usageByUsername[account.username] ?? 0) : 0;
+    for (const v of vouchersByCustomer[customerId] ?? []) {
+      total += usageByUsername[v.code] ?? 0;
+    }
+    return total;
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -53,6 +104,7 @@ export default function CustomersPage() {
                 <th className="py-2 pr-4">Email</th>
                 <th className="py-2 pr-4">Type</th>
                 <th className="py-2 pr-4">PPPoE status</th>
+                <th className="py-2 pr-4">Data used</th>
               </tr>
             </thead>
             <tbody>
@@ -68,6 +120,9 @@ export default function CustomersPage() {
                     </td>
                     <td className="py-2 pr-4 text-signal-ink-dim">
                       {account ? `${account.status} · expires ${account.expires_at ? new Date(account.expires_at).toLocaleDateString() : "—"}` : "—"}
+                    </td>
+                    <td className="py-2 pr-4 font-mono tabular-nums text-signal-ink-dim">
+                      {formatBytes(dataUsedFor(c.id))}
                     </td>
                   </tr>
                 );

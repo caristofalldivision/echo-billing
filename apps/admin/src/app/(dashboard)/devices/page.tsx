@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { getFunctionErrorMessage } from "@/lib/supabase/functions";
-import type { MikrotikDevice } from "@/lib/supabase/types";
+import type { IpAllowlistEntry, MikrotikDevice } from "@/lib/supabase/types";
 import { EmptyState } from "@/components/EmptyState";
 
 const STATUS_STYLE: Record<MikrotikDevice["status"], string> = {
@@ -32,6 +32,57 @@ export default function DevicesPage() {
   const [bootstrapCopied, setBootstrapCopied] = useState(false);
   const [waitingSince, setWaitingSince] = useState<number | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [ipListFor, setIpListFor] = useState<string | null>(null);
+  const [ipEntries, setIpEntries] = useState<IpAllowlistEntry[]>([]);
+  const [newIp, setNewIp] = useState("");
+  const [newIpLabel, setNewIpLabel] = useState("");
+  const [ipError, setIpError] = useState<string | null>(null);
+  const [addingIp, setAddingIp] = useState(false);
+
+  async function loadIpEntries(deviceId: string) {
+    const { data } = await supabase
+      .from("ip_allowlist")
+      .select("*")
+      .eq("mikrotik_device_id", deviceId)
+      .order("created_at", { ascending: false });
+    setIpEntries(data ?? []);
+  }
+
+  function openIpList(deviceId: string) {
+    setIpListFor(deviceId);
+    setNewIp("");
+    setNewIpLabel("");
+    setIpError(null);
+    loadIpEntries(deviceId);
+  }
+
+  async function addIp(e: React.FormEvent) {
+    e.preventDefault();
+    if (!ipListFor) return;
+    setAddingIp(true);
+    setIpError(null);
+    const { data: org } = await supabase.from("organizations").select("id").single();
+    const { error } = await supabase.from("ip_allowlist").insert({
+      org_id: org?.id,
+      mikrotik_device_id: ipListFor,
+      ip_address: newIp,
+      label: newIpLabel || null,
+    });
+    setAddingIp(false);
+    if (error) {
+      setIpError(error.message);
+      return;
+    }
+    setNewIp("");
+    setNewIpLabel("");
+    loadIpEntries(ipListFor);
+  }
+
+  async function removeIp(id: string) {
+    if (!ipListFor) return;
+    await supabase.from("ip_allowlist").delete().eq("id", id);
+    loadIpEntries(ipListFor);
+  }
 
   async function copyBootstrap() {
     await navigator.clipboard.writeText(bootstrap);
@@ -246,6 +297,9 @@ export default function DevicesPage() {
                         <button className="btn-secondary py-1.5" onClick={() => handleShowBootstrap(d)}>
                           View setup script
                         </button>
+                        <button className="btn-secondary py-1.5" onClick={() => openIpList(d.id)}>
+                          Allowed IPs
+                        </button>
                         <button
                           className="text-xs font-medium text-signal-ink-dim hover:text-signal-alert"
                           onClick={() => handleGenerateScript(d.id)}
@@ -361,6 +415,69 @@ export default function DevicesPage() {
                 />
               )}
             </div>
+          )}
+        </div>
+      )}
+
+      {ipListFor && (
+        <div className="card">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-signal-ink">Allowed IPs</h2>
+            <button className="text-sm text-signal-ink-dim" onClick={() => setIpListFor(null)}>
+              Close
+            </button>
+          </div>
+          <p className="mb-4 text-sm text-signal-ink-dim">
+            Static IPs on this router that connect straight through the hotspot — no voucher, no payment.
+            Good for an office PC, printer, or a device you never want asked to log in. The router picks
+            up changes here within 5 minutes (its own <code>echo-ip-sync</code> schedule), or immediately
+            the next time it&apos;s (re)provisioned.
+          </p>
+
+          <form onSubmit={addIp} className="mb-4 flex flex-wrap items-end gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-signal-ink-faint">IP address</label>
+              <input className="input" required value={newIp} onChange={(e) => setNewIp(e.target.value)} placeholder="10.55.0.50" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-signal-ink-faint">Label (optional)</label>
+              <input className="input" value={newIpLabel} onChange={(e) => setNewIpLabel(e.target.value)} placeholder="Office printer" />
+            </div>
+            <button type="submit" className="btn-primary" disabled={addingIp}>
+              {addingIp ? "Adding…" : "Add"}
+            </button>
+          </form>
+          {ipError && <p className="mb-3 text-sm text-signal-alert">{ipError}</p>}
+
+          {ipEntries.length === 0 ? (
+            <p className="py-4 text-center text-sm text-signal-ink-dim">No always-allowed IPs on this router yet.</p>
+          ) : (
+            <table className="w-full text-left text-sm">
+              <thead className="font-mono text-xs uppercase tracking-wide text-signal-ink-faint">
+                <tr>
+                  <th className="py-2 pr-4">IP</th>
+                  <th className="py-2 pr-4">Label</th>
+                  <th className="py-2 pr-4">Added</th>
+                  <th className="py-2 pr-4" />
+                </tr>
+              </thead>
+              <tbody>
+                {ipEntries.map((entry) => (
+                  <tr key={entry.id} className="border-t border-signal-border">
+                    <td className="py-2 pr-4 font-mono text-signal-ink">{entry.ip_address}</td>
+                    <td className="py-2 pr-4 text-signal-ink-dim">{entry.label ?? "—"}</td>
+                    <td className="py-2 pr-4 font-mono tabular-nums text-signal-ink-dim">
+                      {new Date(entry.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="py-2 pr-4">
+                      <button className="text-xs font-bold text-signal-alert" onClick={() => removeIp(entry.id)}>
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
       )}

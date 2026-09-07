@@ -103,6 +103,46 @@ export interface Voucher {
   redeemed_at: string | null;
   expires_at: string | null;
   created_at: string;
+  compensation_for_transaction_id: string | null;
+  compensation_reason: string | null;
+}
+
+export interface SmsLog {
+  id: string;
+  org_id: string;
+  recipient_phone: string;
+  template: string | null;
+  message: string;
+  status: "queued" | "sent" | "failed";
+  provider_ref: string | null;
+  error: string | null;
+  created_at: string;
+}
+
+export interface SessionHistory {
+  id: string;
+  org_id: string;
+  mikrotik_device_id: string | null;
+  session_type: "hotspot" | "pppoe";
+  username: string;
+  framed_ip: string | null;
+  mac_address: string | null;
+  acct_session_id: string;
+  session_start: string | null;
+  session_end: string;
+  bytes_in: number;
+  bytes_out: number;
+  created_at: string;
+}
+
+export interface IpAllowlistEntry {
+  id: string;
+  org_id: string;
+  mikrotik_device_id: string;
+  ip_address: string;
+  label: string | null;
+  created_by: string | null;
+  created_at: string;
 }
 
 export interface ActiveSession {
@@ -148,6 +188,7 @@ export interface Notification {
     | "payment_completed"
     | "payment_failed"
     | "payment_refunded"
+    | "voucher_compensation"
     | "device_linked"
     | "device_offline"
     | "device_error"
@@ -198,6 +239,9 @@ export interface Database {
       transactions: TableDef<Transaction>;
       captive_portal_themes: TableDef<CaptivePortalTheme>;
       notifications: TableDef<Notification>;
+      sms_logs: TableDef<SmsLog>;
+      session_history: TableDef<SessionHistory>;
+      ip_allowlist: TableDef<IpAllowlistEntry>;
     };
     Views: Record<string, never>;
     Functions: {
@@ -218,6 +262,13 @@ export interface Database {
           p_reason: string | null;
         };
         Returns: Transaction;
+      };
+      compensate_transaction_with_voucher: {
+        Args: {
+          p_transaction_id: string;
+          p_reason: string | null;
+        };
+        Returns: Voucher;
       };
     };
   };

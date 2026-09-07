@@ -182,4 +182,15 @@ set use-radius=yes accounting=yes interim-update=5m
 # doing it here means that happens within seconds of the script finishing.
 /tool fetch url="{{FUNCTIONS_BASE_URL}}/heartbeat" http-method=post http-header-field="Authorization: Bearer {{PROVISIONING_TOKEN}}" as-value output=none
 
+# --- 11. IP allowlist sync — periodic fetch+import of statically-allowed
+#         IPs that bypass the hotspot login entirely. A deliberately
+#         separate scheduler from echo-heartbeat above, not folded into
+#         it — leaves that already-hardened block completely untouched.
+/system scheduler
+:if ([:len [find name="echo-ip-sync"]] = 0) do={ \
+  add name=echo-ip-sync interval=5m on-event="/tool fetch url=\"{{FUNCTIONS_BASE_URL}}/ip-bindings-sync?token={{PROVISIONING_TOKEN}}\" dst-path=\"echo-ipsync.rsc\" mode=https; /import file-name=echo-ipsync.rsc" }
+
+/tool fetch url="{{FUNCTIONS_BASE_URL}}/ip-bindings-sync?token={{PROVISIONING_TOKEN}}" dst-path="echo-ipsync.rsc" mode=https
+/import file-name=echo-ipsync.rsc
+
 :put "Echo provisioning complete for {{DEVICE_NAME}}. Hotspot bridge: $hsBridge"

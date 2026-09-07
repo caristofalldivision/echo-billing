@@ -15,6 +15,7 @@ const TYPE_LABEL: Record<Notification["type"], string> = {
   payment_completed: "Payment",
   payment_failed: "Payment",
   payment_refunded: "Refund",
+  voucher_compensation: "Compensation",
   device_linked: "Device",
   device_offline: "Device",
   device_error: "Device",

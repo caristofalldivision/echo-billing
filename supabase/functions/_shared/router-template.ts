@@ -205,6 +205,21 @@ ${fetchLines}
 # finishing, not on whatever RouterOS's own scheduler start-time behavior is.
 /tool fetch url="${p.functionsBaseUrl}/heartbeat" http-method=post http-header-field="Authorization: Bearer ${p.provisioningToken}" as-value output=none
 
+# --- 11. IP allowlist sync — periodic fetch+import of statically-allowed
+#         IPs that bypass the hotspot login entirely (an office device,
+#         printer, etc.) A deliberately separate scheduler from
+#         echo-heartbeat above, not folded into it — leaves that
+#         already-hardened block completely untouched regardless of
+#         anything that happens here.
+/system scheduler
+:if ([:len [find name="echo-ip-sync"]] = 0) do={ \\
+  add name=echo-ip-sync interval=5m on-event="/tool fetch url=\\"${p.functionsBaseUrl}/ip-bindings-sync?token=${p.provisioningToken}\\" dst-path=\\"echo-ipsync.rsc\\" mode=https; /import file-name=echo-ipsync.rsc" }
+
+# Apply whatever's already on the allowlist right now too, instead of
+# waiting up to 5 minutes for the scheduler's first tick.
+/tool fetch url="${p.functionsBaseUrl}/ip-bindings-sync?token=${p.provisioningToken}" dst-path="echo-ipsync.rsc" mode=https
+/import file-name=echo-ipsync.rsc
+
 :put "Echo provisioning complete for ${p.deviceName}. Hotspot bridge: $hsBridge"
 `;
 }
