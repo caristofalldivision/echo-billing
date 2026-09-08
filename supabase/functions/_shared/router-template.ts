@@ -150,8 +150,23 @@ export function renderRouterScript(p: RouterScriptParams): string {
   /ip dhcp-server; \\
   :if ([:len [find interface=$hsBridge]] = 0) do={ add name=echo-hotspot-dhcp interface=$hsBridge address-pool=echo-hotspot-pool lease-time=1h disabled=no }; \\
   /ip dhcp-server network; \\
-  :if ([:len [find address="10.55.0.0/24"]] = 0) do={ add address=10.55.0.0/24 gateway=10.55.0.1 dns-server=1.1.1.1,8.8.8.8 } \\
+  :if ([:len [find address="10.55.0.0/24"]] = 0) do={ add address=10.55.0.0/24 gateway=10.55.0.1 dns-server=10.55.0.1 } \\
 }
+
+# --- 3b. Router as the hotspot's own DNS resolver — handing out an
+#         external resolver (1.1.1.1/8.8.8.8) here used to mean every DNS
+#         lookup from an unauthenticated client round-tripped off-box before
+#         the hotspot could even see the HTTP request to intercept, which
+#         was a large chunk of "takes forever to redirect to the login
+#         page." Answering locally (with its own cache, falling back to
+#         these same public resolvers) cuts that to a LAN round-trip for
+#         every repeat lookup — every client asking for the same captive-
+#         check/ad/telemetry domain after the first hits cache instead of
+#         the internet. allow-remote-requests=yes is what lets the DHCP-
+#         assigned bridge address actually answer client queries at all;
+#         it's off by default.
+/ip dns
+set allow-remote-requests=yes servers=1.1.1.1,8.8.8.8 cache-size=2048KiB
 
 # --- 4. RADIUS client (hotspot + PPPoE auth/accounting via Echo) ------
 /radius
@@ -180,8 +195,20 @@ set accept=yes port=3799
 set use-radius=yes accounting=yes interim-update=5m
 
 # --- 7. Walled garden — allow the payment/API domains before login -----
+# Found 2026-09: Pesapal's hosted checkout page (loaded via a plain
+# top-level redirect while the customer is still unauthenticated) pulls in
+# two render-BLOCKING <script> tags — h.online-metrix.net (device
+# fingerprinting) and songbird.cardinalcommerce.com (3-D Secure) — neither
+# behind *.pesapal.com. Without these walled-gardened, the browser stalls on
+# each one for a full connection-timeout before continuing, which is most of
+# what made checkout feel like it "takes way too long" and made customers
+# close the page before the STK push even fired. www.googletagmanager.com is
+# their analytics tag (async, lower stakes, included anyway since it's
+# cheap); bare pesapal.com covers their footer/terms links that *.pesapal.com
+# may not match depending on RouterOS's wildcard semantics.
 /ip hotspot walled-garden
-:foreach domain in={"*.supabase.co"; "*.pesapal.com"; "cybqa.pesapal.com"} do={ \\
+:foreach domain in={"*.supabase.co"; "*.pesapal.com"; "pesapal.com"; "cybqa.pesapal.com"; \\
+    "h.online-metrix.net"; "songbird.cardinalcommerce.com"; "www.googletagmanager.com"} do={ \\
   :if ([:len [find dst-host=$domain]] = 0) do={ add dst-host=$domain action=allow } }
 
 # --- 8. API user for Echo's provisioning/remote-management calls -------

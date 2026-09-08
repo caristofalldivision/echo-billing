@@ -192,9 +192,17 @@ $("#retry-purchase").addEventListener("click", () => {
 });
 
 // --- Voucher flow ----------------------------------------------------
+// Codes are shown to customers as XXXXX-XXXXX, but phone keyboards/
+// autocomplete happily drop or mangle the dash — normalize the same way
+// the backend does so a code typed without it still verifies and connects.
+function normalizeVoucherCode(input) {
+  const stripped = input.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return stripped.length === 10 ? `${stripped.slice(0, 5)}-${stripped.slice(5)}` : stripped;
+}
+
 $("#voucher-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const code = $("#voucher-code").value.trim().toUpperCase();
+  const code = normalizeVoucherCode($("#voucher-code").value);
   const messageEl = $("#voucher-message");
   messageEl.textContent = "Checking…";
   try {

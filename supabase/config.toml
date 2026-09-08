@@ -45,3 +45,5 @@ verify_jwt = false
 verify_jwt = false
 [functions.org-exists]
 verify_jwt = false
+[functions.reconcile-pending]
+verify_jwt = false

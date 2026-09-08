@@ -13,7 +13,29 @@ import { handlePreflight, withCors } from "../_shared/cors.ts";
 import { supabaseAdmin, getOrgSettings } from "../_shared/supabase.ts";
 import { initiatePurchase } from "../_shared/purchase.ts";
 import { reconcileTransaction } from "../_shared/fulfillment.ts";
-import { runInBackground } from "../_shared/background.ts";
+import { normalizeVoucherCode } from "../_shared/vouchers.ts";
+
+// Every single hotspot connection hits /theme and /plans on page load
+// (main.js's applyBranding() + loadPlans(), both fired immediately) — by
+// far the hottest read path in the whole system, for data that only
+// changes when an admin edits it from Settings. Cached in-memory per warm
+// isolate (same pattern as pesapal.ts's token cache) rather than reaching
+// for external infra like Redis: a single-org deployment's read volume
+// here doesn't need a shared cache tier, and this avoids a DB round trip
+// for the common case entirely. 30s TTL keeps admin edits (a new plan
+// price, a theme tweak) showing up within one short wait, not stale
+// indefinitely, while still collapsing a router's worth of near-simultaneous
+// connections onto a single query.
+const CACHE_TTL_MS = 30_000;
+const cache = new Map<string, { data: unknown; expiresAt: number }>();
+
+async function cached<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+  const hit = cache.get(key);
+  if (hit && hit.expiresAt > Date.now()) return hit.data as T;
+  const data = await fetcher();
+  cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+  return data;
+}
 
 Deno.serve(async (req) => {
   const preflight = handlePreflight(req);
@@ -24,22 +46,28 @@ Deno.serve(async (req) => {
 
   try {
     if (route === "theme" && req.method === "GET") {
-      const supabase = supabaseAdmin();
-      const { data } = await supabase
-        .from("captive_portal_themes")
-        .select("*")
-        .is("mikrotik_device_id", null)
-        .maybeSingle();
-      return withCors({ theme: data ?? null });
+      const data = await cached("theme", async () => {
+        const supabase = supabaseAdmin();
+        const { data } = await supabase
+          .from("captive_portal_themes")
+          .select("*")
+          .is("mikrotik_device_id", null)
+          .maybeSingle();
+        return data ?? null;
+      });
+      return withCors({ theme: data });
     }
 
     if (route === "plans" && req.method === "GET") {
-      const type = url.searchParams.get("type");
-      const supabase = supabaseAdmin();
-      let query = supabase.from("plans").select("*").eq("is_active", true).order("price");
-      if (type) query = query.eq("type", type);
-      const { data, error } = await query;
-      if (error) throw error;
+      const type = url.searchParams.get("type") ?? "";
+      const data = await cached(`plans:${type}`, async () => {
+        const supabase = supabaseAdmin();
+        let query = supabase.from("plans").select("*").eq("is_active", true).order("price");
+        if (type) query = query.eq("type", type);
+        const { data, error } = await query;
+        if (error) throw error;
+        return data;
+      });
       return withCors({ plans: data });
     }
 
@@ -64,7 +92,7 @@ Deno.serve(async (req) => {
       const supabase = supabaseAdmin();
       const { data: txn, error } = await supabase
         .from("transactions")
-        .select("*, plans(*), customers(*), vouchers(code)")
+        .select("*, plans(*), customers(*), vouchers!transactions_voucher_id_fkey(code)")
         .eq("id", transactionId)
         .single();
       if (error || !txn) return withCors({ error: "Transaction not found" }, { status: 404 });
@@ -90,7 +118,7 @@ Deno.serve(async (req) => {
 
       const { data: fresh } = await supabase
         .from("transactions")
-        .select("status, vouchers(code)")
+        .select("status, vouchers!transactions_voucher_id_fkey(code)")
         .eq("id", transactionId)
         .single();
 
@@ -107,7 +135,7 @@ Deno.serve(async (req) => {
       const { data: voucher } = await supabase
         .from("vouchers")
         .select("*, plans(name, duration_minutes, data_cap_mb)")
-        .eq("code", code.toUpperCase())
+        .eq("code", normalizeVoucherCode(code))
         .maybeSingle();
 
       if (!voucher) return withCors({ valid: false, reason: "not_found" });
@@ -132,12 +160,12 @@ Deno.serve(async (req) => {
       // Also a third chance to reconcile (alongside the IPN webhook and the
       // captive portal's own poll) — sandbox/demo accounts have been seen to
       // never call the webhook, so checking right here, on the one request
-      // we know definitely happens, matters. Backgrounded (not awaited): the
-      // destination login.html resumes polling the instant it lands (see
-      // main.js's resumeTransactionId handling), so this redirect doesn't
-      // need to wait on a full Pesapal round-trip first — that wait bought
-      // nothing but redirect latency. Reconcile still runs to completion
-      // server-side either way, same idempotent re-verified fulfillment path.
+      // we know definitely happens, matters. Awaited, not backgrounded: this
+      // route is hit at most once per transaction (not a hot polling path
+      // like /status), so there's no latency budget worth protecting here —
+      // and backgrounding it would mean the redirect response can go out,
+      // and the mini-browser can be closed, before fulfillment actually
+      // finishes running.
       let txnId: string | null = null;
       const heading = "Payment received";
       const message = "Confirming and connecting you…";
@@ -152,7 +180,7 @@ Deno.serve(async (req) => {
           if (txn) {
             txnId = txn.id;
             if (txn.status !== "completed" && txn.status !== "failed") {
-              runInBackground(() => reconcileTransaction(supabase, org, txn));
+              await reconcileTransaction(supabase, org, txn);
             }
           }
         } catch (err) {

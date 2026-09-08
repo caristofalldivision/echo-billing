@@ -9,3 +9,12 @@ export function generateVoucherCode(length = 10): string {
   }
   return code;
 }
+
+// Codes are stored as XXXXX-XXXXX, but phone keyboards/autocomplete drop or
+// mangle the dash and customers shouldn't have to type it exactly — strip
+// everything but alphanumerics, then re-insert the dash at its canonical
+// position so lookups match regardless of how the customer typed it.
+export function normalizeVoucherCode(input: string): string {
+  const stripped = input.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return stripped.length === 10 ? `${stripped.slice(0, 5)}-${stripped.slice(5)}` : stripped;
+}

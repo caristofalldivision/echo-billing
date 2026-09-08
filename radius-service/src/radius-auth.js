@@ -36,6 +36,18 @@ function chapMatches(candidate, chapId, chapPassword, chapChallenge) {
 // and can't be reversed to compute a CHAP digest, so PPPoE only works over
 // PAP; if a router ever sends PPPoE auth via CHAP it will fail here rather
 // than silently misauthenticating.
+//
+// Voucher codes are stored as XXXXX-XXXXX, but a customer typing straight
+// into a phone's login prompt (or a cached/autofilled credential) can easily
+// drop the dash — normalize before the DB lookup so either form works. This
+// only touches the value used for claimVoucher's lookup, not `username`
+// itself, so the CHAP/PAP equality check above (which compares the raw
+// strings the router actually sent) and the PPPoE fallback below are
+// unaffected.
+function normalizeVoucherCode(input) {
+  const stripped = input.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return stripped.length === 10 ? `${stripped.slice(0, 5)}-${stripped.slice(5)}` : stripped;
+}
 async function authenticate({ username, password, chapId, chapPassword, chapChallenge, macAddress }) {
   const isChap = Boolean(chapPassword && chapChallenge);
 
@@ -51,7 +63,7 @@ async function authenticate({ username, password, chapId, chapPassword, chapChal
   // device trying to reuse a shared code — see the long comment on
   // claimVoucher itself in db.js.
   if (matches(username)) {
-    const voucher = await db.claimVoucher(username, macAddress);
+    const voucher = await db.claimVoucher(normalizeVoucherCode(username), macAddress);
     if (voucher) {
       const plan = await db.findPlan(voucher.plan_id);
       return { accept: true, orgId: voucher.org_id, sessionType: "hotspot", plan };
