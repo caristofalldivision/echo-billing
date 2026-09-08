@@ -233,6 +233,7 @@ async function applyBranding() {
     const res = await fetch(`${PORTAL_API}/theme`);
     const { theme } = await res.json();
     if (!theme) return;
+    document.documentElement.dataset.theme = theme.theme || "waves";
     if (theme.logo_url) $(".logo").src = theme.logo_url;
     if (theme.headline) $("#headline").textContent = theme.headline;
     if (theme.tagline) $("#tagline").textContent = theme.tagline;

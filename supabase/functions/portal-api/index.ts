@@ -13,6 +13,7 @@ import { handlePreflight, withCors } from "../_shared/cors.ts";
 import { supabaseAdmin, getOrgSettings } from "../_shared/supabase.ts";
 import { initiatePurchase } from "../_shared/purchase.ts";
 import { reconcileTransaction } from "../_shared/fulfillment.ts";
+import { runInBackground } from "../_shared/background.ts";
 
 Deno.serve(async (req) => {
   const preflight = handlePreflight(req);
@@ -131,11 +132,15 @@ Deno.serve(async (req) => {
       // Also a third chance to reconcile (alongside the IPN webhook and the
       // captive portal's own poll) — sandbox/demo accounts have been seen to
       // never call the webhook, so checking right here, on the one request
-      // we know definitely happens, matters. Best-effort: a failed reconcile
-      // here still leaves the client's poll as a backstop.
+      // we know definitely happens, matters. Backgrounded (not awaited): the
+      // destination login.html resumes polling the instant it lands (see
+      // main.js's resumeTransactionId handling), so this redirect doesn't
+      // need to wait on a full Pesapal round-trip first — that wait bought
+      // nothing but redirect latency. Reconcile still runs to completion
+      // server-side either way, same idempotent re-verified fulfillment path.
       let txnId: string | null = null;
-      let heading = "Payment received";
-      let message = "Confirming and connecting you…";
+      const heading = "Payment received";
+      const message = "Confirming and connecting you…";
       if (ref) {
         try {
           const supabase = supabaseAdmin();
@@ -147,17 +152,8 @@ Deno.serve(async (req) => {
           if (txn) {
             txnId = txn.id;
             if (txn.status !== "completed" && txn.status !== "failed") {
-              await reconcileTransaction(supabase, org, txn);
+              runInBackground(() => reconcileTransaction(supabase, org, txn));
             }
-          }
-          const { data: fresh } = await supabase
-            .from("transactions")
-            .select("status")
-            .eq("pesapal_merchant_reference", ref)
-            .single();
-          if (fresh?.status === "failed") {
-            heading = "Payment didn't go through";
-            message = "Taking you back to try again…";
           }
         } catch (err) {
           console.error("return-page reconcile error", err);

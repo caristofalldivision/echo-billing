@@ -15,6 +15,8 @@ export interface SendSmsResult {
   error?: string;
 }
 
+import { fetchWithTimeout } from "./http.ts";
+
 const TALKSASA_ENDPOINT = "https://bulksms.talksasa.com/api/v3/sms/send";
 
 // TalkSasa only accepts bare-254 MSISDNs (254768557160) — not +254768557160
@@ -32,20 +34,24 @@ function normalizeKenyanMsisdn(raw: string): string {
 
 export async function sendSms(input: SendSmsInput): Promise<SendSmsResult> {
   try {
-    const res = await fetch(TALKSASA_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `Bearer ${input.apiKey}`,
+    const res = await fetchWithTimeout(
+      TALKSASA_ENDPOINT,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${input.apiKey}`,
+        },
+        body: JSON.stringify({
+          recipient: normalizeKenyanMsisdn(input.to),
+          sender_id: input.senderId,
+          message: input.message,
+          type: "plain",
+        }),
       },
-      body: JSON.stringify({
-        recipient: normalizeKenyanMsisdn(input.to),
-        sender_id: input.senderId,
-        message: input.message,
-        type: "plain",
-      }),
-    });
+      10_000,
+    );
 
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {

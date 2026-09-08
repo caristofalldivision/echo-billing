@@ -11,6 +11,7 @@ import { requestToken, getTransactionStatus } from "./pesapal.ts";
 import { generateVoucherCode } from "./vouchers.ts";
 import { sendSms } from "./sms.ts";
 import { sendEmail, receiptEmailHtml } from "./email.ts";
+import { runInBackground } from "./background.ts";
 
 // deno-lint-ignore no-explicit-any
 export async function reconcileTransaction(supabase: any, org: any, txn: any): Promise<void> {
@@ -23,10 +24,21 @@ export async function reconcileTransaction(supabase: any, org: any, txn: any): P
   const status = await getTransactionStatus(org, token, txn.pesapal_order_tracking_id);
 
   if (status.payment_status_description === "Completed") {
-    await supabase
+    // Atomic claim: only proceed if this call is the one that actually
+    // flips pending -> completed. Two concurrent callers (the IPN webhook
+    // landing the same moment as a /status poll, say) could otherwise both
+    // pass the txn.status check above and both fall through to issuing a
+    // voucher / extending a PPPoE account for the same payment. The WHERE
+    // clause here makes Postgres's row lock during the UPDATE do the
+    // serializing, the same idiom already used for voucher claims.
+    const { data: claimed } = await supabase
       .from("transactions")
       .update({ status: "completed", completed_at: new Date().toISOString() })
-      .eq("id", txn.id);
+      .eq("id", txn.id)
+      .eq("status", "pending")
+      .select()
+      .maybeSingle();
+    if (!claimed) return; // another concurrent call already completed this transaction
 
     let voucherCode: string | undefined;
 
@@ -65,56 +77,68 @@ export async function reconcileTransaction(supabase: any, org: any, txn: any): P
       }
     }
 
-    // Receipt notifications — best-effort, never block fulfillment on these.
-    if (txn.phone && org.talksasa_api_key) {
-      const message = voucherCode
-        ? `Echo: Payment received for ${txn.plans.name}. Your WiFi code is ${voucherCode}.`
-        : `Echo: Payment received for ${txn.plans.name}. Your account has been renewed.`;
-      const result = await sendSms({
-        apiKey: org.talksasa_api_key,
-        senderId: org.talksasa_sender_id ?? "ECHO",
-        to: txn.phone,
-        message,
-      });
-      await supabase.from("sms_logs").insert({
-        org_id: org.id,
-        recipient_phone: txn.phone,
-        template: "payment_receipt",
-        message,
-        status: result.ok ? "sent" : "failed",
-        provider_ref: result.providerRef,
-        error: result.error,
-      });
-    }
-
-    if (txn.customers?.email && org.resend_api_key) {
-      const html = receiptEmailHtml({
-        orgName: org.name,
-        primaryColor: org.brand_primary_color,
-        planName: txn.plans.name,
-        amount: txn.amount,
-        currency: txn.currency,
-        reference: txn.pesapal_merchant_reference,
-        voucherCode,
-      });
-      const result = await sendEmail({
-        apiKey: org.resend_api_key,
-        from: `${org.resend_from_name} <${org.resend_from_email}>`,
-        to: txn.customers.email,
-        subject: "Payment received",
-        html,
-      });
-      await supabase.from("email_logs").insert({
-        org_id: org.id,
-        recipient_email: txn.customers.email,
-        template: "payment_receipt",
-        subject: "Payment received",
-        status: result.ok ? "sent" : "failed",
-        provider_ref: result.providerRef,
-        error: result.error,
-      });
-    }
+    // Receipt notifications are best-effort and shouldn't add their own
+    // latency to /status or /return's response — dispatched in the
+    // background so SMS/email fire immediately without the caller waiting
+    // on TalkSasa/Resend round-trips.
+    runInBackground(() => sendReceiptNotifications(supabase, org, txn, voucherCode));
   } else if (status.payment_status_description === "Failed") {
-    await supabase.from("transactions").update({ status: "failed" }).eq("id", txn.id);
+    await supabase
+      .from("transactions")
+      .update({ status: "failed" })
+      .eq("id", txn.id)
+      .eq("status", "pending");
+  }
+}
+
+// deno-lint-ignore no-explicit-any
+async function sendReceiptNotifications(supabase: any, org: any, txn: any, voucherCode?: string): Promise<void> {
+  if (txn.phone && org.talksasa_api_key) {
+    const message = voucherCode
+      ? `Echo: Payment received for ${txn.plans.name}. Your WiFi code is ${voucherCode}.`
+      : `Echo: Payment received for ${txn.plans.name}. Your account has been renewed.`;
+    const result = await sendSms({
+      apiKey: org.talksasa_api_key,
+      senderId: org.talksasa_sender_id ?? "ECHO",
+      to: txn.phone,
+      message,
+    });
+    await supabase.from("sms_logs").insert({
+      org_id: org.id,
+      recipient_phone: txn.phone,
+      template: "payment_receipt",
+      message,
+      status: result.ok ? "sent" : "failed",
+      provider_ref: result.providerRef,
+      error: result.error,
+    });
+  }
+
+  if (txn.customers?.email && org.resend_api_key) {
+    const html = receiptEmailHtml({
+      orgName: org.name,
+      primaryColor: org.brand_primary_color,
+      planName: txn.plans.name,
+      amount: txn.amount,
+      currency: txn.currency,
+      reference: txn.pesapal_merchant_reference,
+      voucherCode,
+    });
+    const result = await sendEmail({
+      apiKey: org.resend_api_key,
+      from: `${org.resend_from_name} <${org.resend_from_email}>`,
+      to: txn.customers.email,
+      subject: "Payment received",
+      html,
+    });
+    await supabase.from("email_logs").insert({
+      org_id: org.id,
+      recipient_email: txn.customers.email,
+      template: "payment_receipt",
+      subject: "Payment received",
+      status: result.ok ? "sent" : "failed",
+      provider_ref: result.providerRef,
+      error: result.error,
+    });
   }
 }

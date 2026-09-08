@@ -210,7 +210,7 @@ export interface CaptivePortalTheme {
   logo_url: string | null;
   primary_color: string;
   secondary_color: string;
-  doodle_set: string;
+  theme: string;
   headline: string;
   tagline: string | null;
   terms_text: string | null;

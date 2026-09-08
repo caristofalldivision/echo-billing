@@ -1,4 +1,5 @@
 // Resend email client (https://resend.com/docs/api-reference/emails/send-email)
+import { fetchWithTimeout } from "./http.ts";
 
 export interface SendEmailInput {
   apiKey: string;
@@ -16,19 +17,23 @@ export interface SendEmailResult {
 
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
   try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${input.apiKey}`,
+    const res = await fetchWithTimeout(
+      "https://api.resend.com/emails",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${input.apiKey}`,
+        },
+        body: JSON.stringify({
+          from: input.from,
+          to: [input.to],
+          subject: input.subject,
+          html: input.html,
+        }),
       },
-      body: JSON.stringify({
-        from: input.from,
-        to: [input.to],
-        subject: input.subject,
-        html: input.html,
-      }),
-    });
+      10_000,
+    );
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
       return { ok: false, error: `Resend ${res.status}: ${JSON.stringify(json)}` };

@@ -3,14 +3,26 @@
   --primary: #5b5fef;
   --secondary: #ffb84d;
 
-  /* Fixed neutrals — warm rather than cool, sets the "aura" independent of brand color */
+  /* Base tokens — these values ARE the "waves" theme (the original/default
+     design); [data-theme="X"] blocks below override them for the other 5.
+     Every rule in this file reads colors/shapes through these tokens
+     (rather than hardcoding #fff, rgba(ink), or a literal border-radius) so
+     a theme switch is a token swap, not a rule-by-rule rewrite. */
+  --font: ui-rounded, "Inter", "Segoe UI", sans-serif;
   --ink: #241a15;
   --paper: #fbf4e8;
   --paper-2: #f4e9d6;
   --muted: #7a6a5c;
+  --surface: #ffffff;
+  --shadow-rgb: 36, 26, 21;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+  --radius-input: 14px;
+  --logo-radius: 50%;
 
-  /* Fixed accents — African-textile-inspired palette, decorative only, never used for
-     functional UI (buttons/links stay on --primary so admin rebranding always works) */
+  /* Decorative accents — never used for functional UI (buttons/links stay
+     on --primary so admin rebranding always works). Values swap per theme;
+     names stay the same so every consuming rule below just works. */
   --terracotta: #c1502e;
   --ochre: #e0a53c;
   --teal: #1f6f68;
@@ -23,7 +35,7 @@
 
 body {
   margin: 0;
-  font-family: ui-rounded, "Inter", "Segoe UI", sans-serif;
+  font-family: var(--font);
   color: var(--ink);
   background: var(--paper);
   min-height: 100vh;
@@ -45,6 +57,7 @@ body {
 .bg-doodle {
   position: fixed;
   inset: 0;
+  background-image: url('/assets/doodle-waves.svg');
   background-repeat: no-repeat;
   background-position: center 80px;
   background-size: 130% auto;
@@ -53,7 +66,8 @@ body {
   pointer-events: none;
 }
 
-/* Hand-drawn zigzag ribbon, mudcloth/kente-inspired — pure CSS, no extra asset files */
+/* Hand-drawn zigzag ribbon, mudcloth/kente-inspired — pure CSS, no extra asset files.
+   Kept as a generic "accent divider" hook: every theme renders this differently. */
 .kente-strip {
   position: relative;
   z-index: 1;
@@ -94,11 +108,11 @@ body {
 .logo-ring {
   height: 76px;
   width: 76px;
-  border-radius: 50%;
+  border-radius: var(--logo-radius);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(160deg, color-mix(in srgb, var(--primary) 14%, white), color-mix(in srgb, var(--ochre) 18%, white));
+  background: linear-gradient(160deg, color-mix(in srgb, var(--primary) 14%, var(--surface)), color-mix(in srgb, var(--ochre) 18%, var(--surface)));
   box-shadow:
     0 14px 30px -14px color-mix(in srgb, var(--primary) 55%, transparent),
     inset 0 0 0 1px color-mix(in srgb, var(--primary) 12%, transparent);
@@ -110,7 +124,7 @@ body {
 }
 
 .header h1 {
-  font-family: ui-rounded, "Inter", "Segoe UI", sans-serif;
+  font-family: var(--font);
   font-weight: 800;
   font-size: 28px;
   letter-spacing: -0.02em;
@@ -131,12 +145,12 @@ body {
 
 .tabs {
   display: flex;
-  background: #fff;
-  border-radius: 999px;
+  background: var(--surface);
+  border-radius: var(--radius-pill);
   padding: 5px;
   box-shadow:
-    0 10px 26px -14px rgba(36, 26, 21, 0.35),
-    inset 0 0 0 1px rgba(36, 26, 21, 0.04);
+    0 10px 26px -14px rgba(var(--shadow-rgb), 0.35),
+    inset 0 0 0 1px rgba(var(--shadow-rgb), 0.04);
 }
 
 .tab {
@@ -144,7 +158,7 @@ body {
   border: none;
   background: transparent;
   padding: 11px 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-weight: 700;
   font-size: 14px;
   color: var(--muted);
@@ -157,7 +171,7 @@ body {
 }
 
 .tab.active {
-  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 70%, var(--teal)));
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 70%, var(--secondary)));
   color: #fff;
   box-shadow: 0 8px 18px -8px color-mix(in srgb, var(--primary) 65%, transparent);
 }
@@ -192,14 +206,14 @@ body {
 
 .plan-card {
   position: relative;
-  background: #fff;
-  border-radius: 20px;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
   padding: 16px 18px 16px 22px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  box-shadow: 0 12px 28px -18px rgba(36, 26, 21, 0.4);
+  box-shadow: 0 12px 28px -18px rgba(var(--shadow-rgb), 0.4);
   border: 2px solid transparent;
   cursor: pointer;
   transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
@@ -227,12 +241,12 @@ body {
 .plan-card:hover {
   border-color: var(--primary);
   transform: translateY(-2px);
-  box-shadow: 0 16px 32px -16px color-mix(in srgb, var(--primary) 35%, rgba(36, 26, 21, 0.4));
+  box-shadow: 0 16px 32px -16px color-mix(in srgb, var(--primary) 35%, rgba(var(--shadow-rgb), 0.4));
 }
 
 .plan-card .plan-name {
   font-weight: 800;
-  font-family: ui-rounded, "Inter", sans-serif;
+  font-family: var(--font);
   font-size: 15.5px;
 }
 
@@ -243,13 +257,13 @@ body {
 }
 
 .plan-card .plan-price {
-  font-family: ui-rounded, "Inter", sans-serif;
+  font-family: var(--font);
   font-weight: 800;
   color: #fff;
   font-size: 14.5px;
-  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 65%, var(--teal)));
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 65%, var(--secondary)));
   padding: 6px 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   white-space: nowrap;
 }
 
@@ -267,8 +281,9 @@ label {
 
 input {
   border: 1.5px solid var(--paper-2);
-  background: #fff;
-  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: var(--radius-input);
   padding: 14px 15px;
   font-size: 15px;
   outline: none;
@@ -282,10 +297,10 @@ input:focus {
 
 .btn-primary {
   position: relative;
-  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 68%, var(--teal)));
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 68%, var(--secondary)));
   color: #fff;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 15px;
   font-weight: 800;
   font-size: 15.5px;
@@ -330,23 +345,23 @@ input:focus {
 }
 
 .status-box {
-  background: #fff;
-  border-radius: 22px;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
   padding: 30px 20px;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  box-shadow: 0 14px 32px -18px rgba(36, 26, 21, 0.4);
+  box-shadow: 0 14px 32px -18px rgba(var(--shadow-rgb), 0.4);
 }
 
 .status-box.success {
-  background: linear-gradient(180deg, #fff, color-mix(in srgb, var(--teal) 8%, #fff));
+  background: linear-gradient(180deg, var(--surface), color-mix(in srgb, var(--teal) 8%, var(--surface)));
 }
 
 .status-box.failed {
-  background: linear-gradient(180deg, #fff, color-mix(in srgb, var(--terracotta) 8%, #fff));
+  background: linear-gradient(180deg, var(--surface), color-mix(in srgb, var(--terracotta) 8%, var(--surface)));
 }
 
 .success-icon {
@@ -398,4 +413,246 @@ input:focus {
 .terms {
   max-width: 340px;
   margin: 0 auto;
+}
+
+/* ===========================================================================
+   Themes — "waves" (above) is the default/root theme. Each block below is a
+   full token swap plus a handful of structural overrides where a variable
+   alone can't express the difference (background art, blur, dark-mode
+   borders). No new asset files, no webfonts — same fixed DOM and the same
+   two static assets already fetched by every router.
+   =========================================================================== */
+
+/* --- mono: flat black/white/brand-color, sharp corners, no shadows/gradients --- */
+[data-theme="mono"] {
+  --font: ui-monospace, "SF Mono", Consolas, "Courier New", monospace;
+  --ink: #111111;
+  --paper: #ffffff;
+  --paper-2: #e4e4e4;
+  --muted: #6b6b6b;
+  --surface: #ffffff;
+  --shadow-rgb: 0, 0, 0;
+  --radius-lg: 4px;
+  --radius-pill: 4px;
+  --radius-input: 4px;
+  --logo-radius: 4px;
+  --terracotta: #111111;
+  --ochre: #111111;
+  --teal: #111111;
+  --clay: #111111;
+}
+[data-theme="mono"] .bg-glow,
+[data-theme="mono"] .bg-doodle {
+  display: none;
+}
+[data-theme="mono"] .kente-strip {
+  background-image: none;
+  background: var(--ink);
+  -webkit-mask-image: none;
+  mask-image: none;
+  border-radius: 0;
+  height: 2px;
+  opacity: 1;
+}
+[data-theme="mono"] .tabs,
+[data-theme="mono"] .plan-card,
+[data-theme="mono"] .status-box,
+[data-theme="mono"] input {
+  box-shadow: none;
+  border: 1.5px solid var(--ink);
+}
+[data-theme="mono"] .plan-card::before {
+  width: 4px;
+}
+[data-theme="mono"] .tab.active,
+[data-theme="mono"] .btn-primary,
+[data-theme="mono"] .plan-card .plan-price {
+  background: var(--primary);
+  box-shadow: none;
+}
+[data-theme="mono"] .btn-primary:hover,
+[data-theme="mono"] .btn-primary:active {
+  box-shadow: none;
+}
+[data-theme="mono"] .status-box.success,
+[data-theme="mono"] .status-box.failed {
+  background: var(--surface);
+}
+[data-theme="mono"] .logo-ring {
+  background: #fff;
+  border: 1.5px solid var(--ink);
+  box-shadow: none;
+}
+
+/* --- sunrise: warm gradient background, soft blob shapes, pill-heavy UI --- */
+[data-theme="sunrise"] {
+  --ink: #4a2c1d;
+  --paper: #fff2e6;
+  --paper-2: #ffe1c2;
+  --muted: #9b6b4f;
+  --surface: #fffaf3;
+  --shadow-rgb: 190, 90, 40;
+  --radius-lg: 28px;
+  --radius-pill: 999px;
+  --radius-input: 20px;
+  --logo-radius: 50%;
+  --terracotta: #ff7a59;
+  --ochre: #ffb347;
+  --teal: #ff9466;
+  --clay: #ffcf8c;
+}
+[data-theme="sunrise"] body {
+  background: radial-gradient(1200px 600px at 50% -20%, #ffd9a0 0%, transparent 60%), var(--paper);
+}
+[data-theme="sunrise"] .bg-glow {
+  background:
+    radial-gradient(420px 420px at 15% 10%, color-mix(in srgb, var(--terracotta) 35%, transparent), transparent 70%),
+    radial-gradient(380px 380px at 90% 25%, color-mix(in srgb, var(--ochre) 35%, transparent), transparent 70%),
+    radial-gradient(360px 360px at 50% 90%, color-mix(in srgb, var(--secondary) 30%, transparent), transparent 70%);
+}
+[data-theme="sunrise"] .bg-doodle {
+  display: none;
+}
+[data-theme="sunrise"] .kente-strip {
+  background-image: none;
+  background: linear-gradient(90deg, var(--terracotta), var(--ochre), var(--secondary));
+  height: 6px;
+  opacity: 0.9;
+}
+
+/* --- circuit: dark background, geometric grid, monospace numerals --- */
+[data-theme="circuit"] {
+  --font: ui-monospace, "SF Mono", Consolas, "Courier New", monospace;
+  --ink: #d8f7ea;
+  --paper: #0a0f14;
+  --paper-2: #16202a;
+  --muted: #7fa3a8;
+  --surface: #101821;
+  --shadow-rgb: 0, 0, 0;
+  --radius-lg: 10px;
+  --radius-pill: 6px;
+  --radius-input: 6px;
+  --logo-radius: 10px;
+  --terracotta: var(--primary);
+  --ochre: var(--secondary);
+  --teal: #2dd4bf;
+  --clay: #1e293b;
+}
+[data-theme="circuit"] body {
+  background-image:
+    linear-gradient(var(--paper-2) 1px, transparent 1px),
+    linear-gradient(90deg, var(--paper-2) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-color: var(--paper);
+}
+[data-theme="circuit"] .bg-glow {
+  background:
+    radial-gradient(420px 300px at 50% -10%, color-mix(in srgb, var(--primary) 25%, transparent), transparent 70%),
+    radial-gradient(320px 240px at 100% 30%, color-mix(in srgb, var(--teal) 20%, transparent), transparent 70%);
+}
+[data-theme="circuit"] .bg-doodle {
+  display: none;
+}
+[data-theme="circuit"] .kente-strip {
+  background-image: none;
+  background: linear-gradient(90deg, transparent, var(--teal), transparent);
+  height: 2px;
+  opacity: 0.7;
+}
+[data-theme="circuit"] .tabs,
+[data-theme="circuit"] .plan-card,
+[data-theme="circuit"] .status-box,
+[data-theme="circuit"] input {
+  border: 1px solid color-mix(in srgb, var(--teal) 30%, transparent);
+}
+[data-theme="circuit"] .logo-ring {
+  border: 1px solid color-mix(in srgb, var(--teal) 40%, transparent);
+}
+
+/* --- garden: pastel palette, organic/soft shapes, serif type --- */
+[data-theme="garden"] {
+  --font: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  --ink: #2f3b2a;
+  --paper: #f3f7ec;
+  --paper-2: #e3edd6;
+  --muted: #6f8060;
+  --surface: #ffffff;
+  --shadow-rgb: 47, 59, 42;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
+  --radius-input: 18px;
+  --logo-radius: 42% 58% 61% 39% / 45% 41% 59% 55%;
+  --terracotta: #e08a8a;
+  --ochre: #d9b45c;
+  --teal: #7ba888;
+  --clay: #b9895f;
+}
+[data-theme="garden"] .bg-doodle {
+  display: none;
+}
+[data-theme="garden"] .bg-glow {
+  background:
+    radial-gradient(360px 320px at 12% 8%, color-mix(in srgb, var(--teal) 30%, transparent), transparent 70%),
+    radial-gradient(320px 300px at 92% 18%, color-mix(in srgb, var(--ochre) 28%, transparent), transparent 70%),
+    radial-gradient(340px 300px at 40% 95%, color-mix(in srgb, var(--terracotta) 22%, transparent), transparent 70%);
+}
+[data-theme="garden"] .kente-strip {
+  background-image: radial-gradient(circle, var(--teal) 2px, transparent 2.5px);
+  background-size: 14px 14px;
+  background-color: transparent;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  height: 8px;
+}
+[data-theme="garden"] .plan-card {
+  border-radius: 30px 14px 30px 14px;
+}
+
+/* --- midnight: true dark mode, glassy/blurred surfaces, glowing accent --- */
+[data-theme="midnight"] {
+  --ink: #eef0ff;
+  --paper: #0d0d1a;
+  --paper-2: #1c1c30;
+  --muted: #9391b5;
+  --surface: rgba(255, 255, 255, 0.06);
+  --shadow-rgb: 0, 0, 0;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+  --radius-input: 16px;
+  --logo-radius: 50%;
+  --terracotta: var(--primary);
+  --ochre: var(--secondary);
+  --teal: #7c8cff;
+  --clay: #2c2c4a;
+}
+[data-theme="midnight"] body {
+  background: radial-gradient(900px 500px at 50% -10%, color-mix(in srgb, var(--primary) 22%, transparent), transparent 60%), var(--paper);
+}
+[data-theme="midnight"] .bg-doodle {
+  display: none;
+}
+[data-theme="midnight"] .bg-glow {
+  background:
+    radial-gradient(420px 320px at 50% -10%, color-mix(in srgb, var(--primary) 30%, transparent), transparent 70%),
+    radial-gradient(360px 300px at 100% 25%, color-mix(in srgb, var(--secondary) 22%, transparent), transparent 70%);
+}
+[data-theme="midnight"] .kente-strip {
+  background-image: none;
+  background: color-mix(in srgb, var(--primary) 60%, transparent);
+  height: 3px;
+  opacity: 0.8;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--primary) 70%, transparent);
+}
+[data-theme="midnight"] .tabs,
+[data-theme="midnight"] .plan-card,
+[data-theme="midnight"] .status-box {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+[data-theme="midnight"] input {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+[data-theme="midnight"] .logo-ring {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--primary) 30%, var(--paper-2)), color-mix(in srgb, var(--secondary) 20%, var(--paper-2)));
 }
