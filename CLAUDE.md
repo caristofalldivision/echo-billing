@@ -199,14 +199,36 @@ assistant, not just a desktop browser.
 
 **Pesapal's IPN webhook is not reliable enough to be the only fulfillment
 trigger**, at least on sandbox/demo credentials — observed to simply never
-fire. `portal-api`'s `/status` route (what the captive portal polls) and
-its `/return` route both also call `reconcileTransaction()` (in
-`_shared/fulfillment.ts`) to actively re-verify with Pesapal's
-`GetTransactionStatus` and fulfill right there — same idempotent,
-re-verified logic the webhook uses, just triggered from three places
-instead of one. If "customer paid but never got connected" resurfaces,
-check whether all three paths are still wired up before assuming it's a
-new bug.
+fire. `portal-api`'s `/status` route (what the captive portal polls), its
+`/return` route, and a `reconcile-pending` edge function on a 1-minute
+`pg_cron` sweep (migration `0009_reconcile_pending_sweep.sql`, added
+2026-09) all also call `reconcileTransaction()` (in `_shared/fulfillment.ts`)
+to actively re-verify with Pesapal's `GetTransactionStatus` and fulfill
+right there — same idempotent, re-verified logic the webhook uses, now
+triggered from four places instead of one. The sweep exists specifically
+because the other three all depend on the customer's browser staying open
+long enough to hit them (the captive-portal purchase flow's `callback_url`
+points straight at the router's `login.html`, not through `/return`, so
+`/return`'s reconcile only ever runs when there's no `returnOrigin` — not
+the real hotspot path) — it's the one trigger that doesn't. If "customer
+paid but never got connected" resurfaces, check the sweep is still
+scheduled (`cron.job` in Postgres) before assuming a new bug.
+
+**A working `reconcileTransaction()` trigger doesn't mean it's actually
+reachable — verify the query, not just that the route exists.** Found
+2026-09: `/status`'s select embedded `vouchers(code)`, and once the
+voucher-compensation feature added a *second* FK between `transactions`
+and `vouchers` (`compensation_for_transaction_id`), that embed became
+ambiguous and PostgREST rejected the query outright — every single
+`/status` call silently returned `{"error":"Transaction not found"}`
+regardless of real payment status. This went undetected because IPN
+happened to fire on every test payment until it didn't; the "reliable"
+client-poll fallback had actually been dead the whole time. Whenever a
+new FK is added to a table that's already embedded in an existing
+`.select("*, thatTable(...)")` elsewhere in the codebase, grep for that
+table name across `supabase/functions` and disambiguate every embed with
+`!fk_name` (e.g. `vouchers!transactions_voucher_id_fkey(code)`) — don't
+assume an old, previously-working embed is still unambiguous.
 
 **TalkSasa's send endpoint only accepts bare-254 phone numbers**
 (`254768557160`) — not `+254768557160`, not the local `0768557160` format
@@ -230,6 +252,51 @@ view (rx = client's upload, tx = client's download) per MikroTik's own
 convention — not independently verified against a live router yet, worth
 confirming upload/download land the right way round the first time a
 speed-limited plan is actually tested end-to-end.
+
+**Pesapal's hosted checkout page loads render-blocking third-party scripts
+that must be in the walled garden, or checkout stalls for a full connection
+timeout on each one.** Found 2026-09 via `curl`-ing a live checkout page and
+grepping its `<script src>` tags: `h.online-metrix.net` (device
+fingerprinting) and `songbird.cardinalcommerce.com` (3-D Secure) are loaded
+with plain blocking `<script>` tags in `<head>`/body, neither covered by
+`*.pesapal.com`. With the router blocking them (default: everything not
+walled-gardened is blocked pre-auth), the browser hangs on each one before
+continuing — this was most of what made checkout "take way too long" and
+likely caused customers to close the mini-browser before the STK push even
+fired, which is its own separate failure mode (see the IPN/reconcile
+gotchas above — a closed browser means no `/status` polling either). Full
+current list lives in `router-template.ts`/`router-setup.rsc.tpl`'s section
+7 — if Pesapal changes their checkout page's dependencies, re-check with
+the same `curl`+grep approach rather than guessing.
+
+**Hotspot clients should get the router's own address as DNS, not an
+external resolver directly.** `dns-server=1.1.1.1,8.8.8.8` on the DHCP
+network (the original config) meant every unauthenticated client's DNS
+query round-tripped off-box before the hotspot could even see the HTTP
+request to intercept — a real contributor to slow-feeling redirects,
+especially on high-latency links. Fixed by pointing DHCP at the bridge's
+own address and configuring `/ip dns set allow-remote-requests=yes
+servers=1.1.1.1,8.8.8.8 cache-size=2048KiB` so the router answers locally
+(caching) and only falls back to the public resolvers on a miss.
+
+**Neither of the two fixes above apply to an already-provisioned router
+automatically** — same as the scheduler gotcha below, RouterOS only picks
+up template changes on a re-run of the provisioning script. It's safe to
+re-run (idempotent), but don't expect an existing deployment to have picked
+this up without being told to.
+
+**Voucher codes must verify/authenticate with or without the dash.**
+Codes are generated (and stored) as `XXXXX-XXXXX`, but customers routinely
+type them without it (phone keyboards, autocomplete). `normalizeVoucherCode`
+(strip non-alphanumerics, re-insert the dash at position 5) exists in two
+places that can never share an import — `supabase/functions/_shared/
+vouchers.ts` (used by `portal-api`'s `check-voucher` route) and
+`radius-service/src/radius-auth.js` (used right before `db.claimVoucher`,
+the actual RADIUS auth-granting call) — because one is a Deno/TS function
+and the other a Node/CJS service with no shared package between them. If
+you change the code format or the normalization logic, update both; a
+mismatch means one boundary accepts a dash-less code and the other
+silently rejects it.
 
 **RouterOS scheduler `add` with `:if ([:len [find name=...]] = 0)` only
 creates a scheduler once — it never updates an existing one's `on-event`.**
@@ -274,6 +341,19 @@ insert-calls), SMS compose + history, voucher compensation as an
 alternative to cash refunds, per-device IP allowlisting, and a redesigned
 grouped sidebar — all on top of the original customers/devices/plans/
 vouchers/transactions pages.
+
+**2026-09 payment/UX hardening pass** (live-tested against the real
+RB760iGS via direct API/DB inspection, not just code review): fixed the
+`/status` ambiguous-embed bug and added the `reconcile-pending` cron sweep
+(see gotchas above) — both stuck-pending test transactions recovered live
+during the fix; added dash-insensitive voucher verification; found and
+walled-gardened Pesapal's checkout-page dependencies plus switched hotspot
+DNS to the router itself; added a warm-isolate in-memory cache for
+`portal-api`'s `/theme`/`/plans` (deliberately not Redis — single-org,
+low-QPS doesn't justify a shared cache tier). All deployed. **Not yet
+verified**: whether the walled-garden/DNS fix actually shortens the
+real-world redirect time on hardware — needs a router re-provision and a
+live retest, not yet done as of this writing.
 
 **Fly.io gotcha:** the account this project's `flyctl` is logged into
 (`echonet25@gmail.com`) has a *second*, unrelated app called
