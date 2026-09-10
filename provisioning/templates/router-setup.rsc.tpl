@@ -56,9 +56,23 @@
 :if ([:len [/system ntp client servers find address="pool.ntp.org"]] = 0) do={ /system ntp client servers add address=pool.ntp.org }
 :delay 3s
 
-# --- 1. WireGuard tunnel back to Echo ---------------------------------
+# --- 1. WireGuard tunnel back to Echo -----------------------------------
+# The interface/address blocks below are update-aware, not just
+# add-if-missing — deleting a device (a real admin-portal flow) and
+# re-provisioning the SAME physical router under a DIFFERENT device row
+# generates a new keypair + tunnel IP server-side; a plain "add if missing"
+# guard would leave the router silently running its OLD private key/address
+# forever (an interface by that name already exists), while radius-service
+# has already dropped the old peer — the WireGuard handshake then never
+# even starts. Re-running for the SAME device is unaffected (values already
+# match, so these are no-ops); this only changes behavior when they've
+# drifted.
 /interface wireguard
-:if ([:len [find name="echo-tunnel"]] = 0) do={ add name=echo-tunnel listen-port=51820 private-key="{{WIREGUARD_CLIENT_PRIVKEY}}" }
+:if ([:len [find name="echo-tunnel"]] = 0) do={ \
+  add name=echo-tunnel listen-port=51820 private-key="{{WIREGUARD_CLIENT_PRIVKEY}}" \
+} else={ \
+  :if ([/interface wireguard get [find name="echo-tunnel"] private-key] != "{{WIREGUARD_CLIENT_PRIVKEY}}") do={ \
+    /interface wireguard set [find name="echo-tunnel"] private-key="{{WIREGUARD_CLIENT_PRIVKEY}}" } }
 
 /interface wireguard peers
 :if ([:len [find comment="echo-server"]] = 0) do={ \
@@ -68,7 +82,11 @@
     allowed-address=10.77.0.0/16 persistent-keepalive=25s comment=echo-server }
 
 /ip address
-:if ([:len [find interface=echo-tunnel]] = 0) do={ add address={{WIREGUARD_TUNNEL_IP}} interface=echo-tunnel }
+:if ([:len [find interface=echo-tunnel]] = 0) do={ \
+  add address={{WIREGUARD_TUNNEL_IP}} interface=echo-tunnel \
+} else={ \
+  :if ([/ip address get [find interface=echo-tunnel] address] != "{{WIREGUARD_TUNNEL_IP}}") do={ \
+    /ip address set [find interface=echo-tunnel] address={{WIREGUARD_TUNNEL_IP}} } }
 
 # A WireGuard peer's allowed-address only controls which packets the
 # tunnel will carry — unlike Linux's wg-quick, RouterOS does NOT use it

@@ -93,9 +93,30 @@ export function renderRouterScript(p: RouterScriptParams): string {
 :if ([:len [/system ntp client servers find address="pool.ntp.org"]] = 0) do={ /system ntp client servers add address=pool.ntp.org }
 :delay 3s
 
-# --- 1. WireGuard tunnel back to Echo ---------------------------------
+# --- 1. WireGuard tunnel back to Echo -----------------------------------
+# The interface/address blocks below are update-aware, not just
+# add-if-missing — found 2026-09-10 the hard way: deleting a device (now a
+# real admin-portal flow) and re-provisioning the *same physical router*
+# under a *different* device row generates a brand-new keypair + tunnel IP
+# server-side, but a plain "if no interface named echo-tunnel exists, add
+# one" guard left the router silently running its OLD private key and OLD
+# tunnel address forever, since an interface by that name already existed
+# from the previous device. radius-service correctly drops the old peer
+# (see wireguard.js's syncPeers() cleanup) the moment that old device row
+# is gone, so the router ends up presenting a key the server no longer
+# recognizes at all — the WireGuard handshake never even starts (confirmed
+# live: 'wg show wg0 latest-handshakes' read 0 for the new peer, endpoint
+# "(none)"), so nothing past this point — RADIUS, heartbeat, everything —
+# can ever reach Echo, despite payments/vouchers working fine (those don't
+# need this tunnel). Re-running this script for the SAME device is
+# unaffected (the key/address already match, so these are no-ops); this
+# only changes behavior when they've drifted.
 /interface wireguard
-:if ([:len [find name="echo-tunnel"]] = 0) do={ add name=echo-tunnel listen-port=51820 private-key="${p.wireguardClientPrivkey}" }
+:if ([:len [find name="echo-tunnel"]] = 0) do={ \\
+  add name=echo-tunnel listen-port=51820 private-key="${p.wireguardClientPrivkey}" \\
+} else={ \\
+  :if ([/interface wireguard get [find name="echo-tunnel"] private-key] != "${p.wireguardClientPrivkey}") do={ \\
+    /interface wireguard set [find name="echo-tunnel"] private-key="${p.wireguardClientPrivkey}" } }
 
 /interface wireguard peers
 :if ([:len [find comment="echo-server"]] = 0) do={ \\
@@ -105,7 +126,11 @@ export function renderRouterScript(p: RouterScriptParams): string {
     allowed-address=10.77.0.0/16 persistent-keepalive=25s comment=echo-server }
 
 /ip address
-:if ([:len [find interface=echo-tunnel]] = 0) do={ add address=${p.wireguardTunnelIp} interface=echo-tunnel }
+:if ([:len [find interface=echo-tunnel]] = 0) do={ \\
+  add address=${p.wireguardTunnelIp} interface=echo-tunnel \\
+} else={ \\
+  :if ([/ip address get [find interface=echo-tunnel] address] != "${p.wireguardTunnelIp}") do={ \\
+    /ip address set [find interface=echo-tunnel] address=${p.wireguardTunnelIp} } }
 
 # A WireGuard peer's allowed-address only controls which packets the
 # tunnel will carry — unlike Linux's wg-quick, RouterOS does NOT use it
