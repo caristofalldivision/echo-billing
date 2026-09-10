@@ -15,8 +15,8 @@ export default function PlansPage() {
     price: "",
     durationMinutes: "",
     dataCapMb: "",
-    speedDownKbps: "",
-    speedUpKbps: "",
+    speedDownMbps: "",
+    speedUpMbps: "",
   });
 
   async function load() {
@@ -40,13 +40,23 @@ export default function PlansPage() {
       price: Number(form.price),
       duration_minutes: form.durationMinutes ? Number(form.durationMinutes) : null,
       data_cap_mb: form.dataCapMb ? Number(form.dataCapMb) : null,
-      speed_down_kbps: form.speedDownKbps ? Number(form.speedDownKbps) : null,
-      speed_up_kbps: form.speedUpKbps ? Number(form.speedUpKbps) : null,
+      // Collected in Mbps (what an ISP actually sells and what an admin
+      // thinks in), stored in kbps because that's what
+      // Mikrotik-Rate-Limit wants. The form used to be labelled "Kbps"
+      // and a plan was created with 5 — meaning 5 Mbps, stored as 5 kbps
+      // — which RADIUS then handed the router as a literal 5k/5k rate
+      // limit. Customers authenticated fine and then had a connection so
+      // throttled that nothing loaded at all, which is indistinguishable
+      // from "connected but no internet" and cost real debugging time
+      // (2026-09-10). Doing the unit conversion here, in the one place a
+      // human types the number, is what stops that recurring.
+      speed_down_kbps: form.speedDownMbps ? Math.round(Number(form.speedDownMbps) * 1000) : null,
+      speed_up_kbps: form.speedUpMbps ? Math.round(Number(form.speedUpMbps) * 1000) : null,
       is_active: true,
     });
     setSaving(false);
     setShowForm(false);
-    setForm({ ...form, name: "", price: "", durationMinutes: "", dataCapMb: "", speedDownKbps: "", speedUpKbps: "" });
+    setForm({ ...form, name: "", price: "", durationMinutes: "", dataCapMb: "", speedDownMbps: "", speedUpMbps: "" });
     load();
   }
 
@@ -122,21 +132,27 @@ export default function PlansPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm font-medium">Down (Kbps)</label>
+              <label className="mb-1 block text-sm font-medium">Download (Mbps)</label>
               <input
                 className="input"
                 type="number"
-                value={form.speedDownKbps}
-                onChange={(e) => setForm({ ...form, speedDownKbps: e.target.value })}
+                step="0.1"
+                min="0.1"
+                value={form.speedDownMbps}
+                onChange={(e) => setForm({ ...form, speedDownMbps: e.target.value })}
+                placeholder="e.g. 5 — blank for uncapped"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Up (Kbps)</label>
+              <label className="mb-1 block text-sm font-medium">Upload (Mbps)</label>
               <input
                 className="input"
                 type="number"
-                value={form.speedUpKbps}
-                onChange={(e) => setForm({ ...form, speedUpKbps: e.target.value })}
+                step="0.1"
+                min="0.1"
+                value={form.speedUpMbps}
+                onChange={(e) => setForm({ ...form, speedUpMbps: e.target.value })}
+                placeholder="e.g. 3 — blank for uncapped"
               />
             </div>
           </div>

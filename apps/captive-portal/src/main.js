@@ -263,23 +263,52 @@ $("#recover-form").addEventListener("submit", async (e) => {
   }
 });
 
-// Tries the last voucher code that successfully connected on this device,
-// once per browser session (not on every reload — an expired/used-up code
-// would otherwise auto-resubmit forever, since a failed hotspot login just
-// redirects right back to this same page). Skipped entirely while resuming
-// a payment (below) so the two auto-flows can't race each other.
-function tryAutoReconnect() {
+// Remembers this device's last code and, on every page load, asks the
+// backend whether it's still good before doing anything with it. The check
+// matters: a hotspot login that fails just bounces the browser straight back
+// to this same page, so blindly resubmitting a spent code would put the
+// customer in an invisible submit/redirect loop. check-voucher now reports
+// a used-but-still-inside-its-paid-window code as valid with reconnect:true
+// (matching what RADIUS will actually accept — see the route's comment in
+// portal-api), so this asks the one component that knows, rather than
+// guessing from local state that can't see redemption time or the plan's
+// duration.
+//
+// Result: a customer whose session dropped mid-plan — phone died, walked
+// out of range, router rebooted — just reopens the portal and is back
+// online with no typing and no re-payment. Once their time is genuinely up,
+// the stored code is cleared and they get the plan list instead of a
+// confusing error. Skipped while resuming a payment so the two auto-flows
+// can't race.
+async function tryAutoReconnect() {
   if (resumeTransactionId) return;
-  if (sessionStorage.getItem("echo_reconnect_attempted")) return;
   let code;
   try {
     code = localStorage.getItem("echo_last_voucher_code");
   } catch {
-    return;
+    return; // private browsing / storage disabled
   }
   if (!code) return;
-  sessionStorage.setItem("echo_reconnect_attempted", "1");
-  connectWithCode(code);
+
+  try {
+    const res = await fetch(`${PORTAL_API}/check-voucher`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    const data = await res.json();
+    if (!res.ok) return; // backend hiccup — leave the code stored, try next load
+    if (data.valid) {
+      $("#voucher-message").textContent = "Welcome back — reconnecting you…";
+      connectWithCode(code);
+      return;
+    }
+    // Genuinely spent/expired/revoked: stop offering it, so the customer
+    // sees the plan list rather than a silent failed reconnect.
+    localStorage.removeItem("echo_last_voucher_code");
+  } catch {
+    // offline/unreachable — keep the code for a future attempt
+  }
 }
 
 // --- Voucher flow ----------------------------------------------------
@@ -312,12 +341,16 @@ $("#voucher-form").addEventListener("submit", async (e) => {
       return;
     }
     if (data.valid) {
-      messageEl.textContent = `Valid — ${data.plan.name}. Connecting…`;
+      messageEl.textContent = data.reconnect
+        ? `Welcome back — ${data.plan.name}. Reconnecting…`
+        : `Valid — ${data.plan.name}. Connecting…`;
       connectWithCode(code);
     } else {
-      messageEl.textContent = { used: "This code was already used.", expired: "This code has expired." }[
-        data.reason
-      ] ?? "Code not found. Check and try again.";
+      messageEl.textContent = {
+        used: "This code has been fully used up. Please buy a new one.",
+        expired: "This code has expired.",
+        revoked: "This code is no longer valid. Please contact support.",
+      }[data.reason] ?? "Code not found. Check and try again.";
     }
   } catch {
     messageEl.textContent = "Couldn't verify the code — check your connection.";

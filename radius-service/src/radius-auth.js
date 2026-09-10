@@ -135,10 +135,34 @@ function startAuthServer({ port, secret }) {
       // namespace instead of the vendor-14988 one it was actually loaded
       // into. Confirmed by round-tripping encode/decode in isolation before
       // wiring this in — see git history for the throwaway test script.
-      const rx = result.plan.speed_up_kbps;
-      const tx = result.plan.speed_down_kbps;
+      // Floor of 256 kbps. These columns are kbps, but the admin portal's
+      // plan form was previously labelled "Kbps" while an admin naturally
+      // typed the Mbps number they sell — a plan meant to be 5 Mbps was
+      // stored as 5 kbps and handed to the router as a literal 5k/5k rate
+      // limit. The customer authenticated successfully and then had a
+      // connection so slow that not a single page loaded, which is
+      // indistinguishable from "connected but no internet" from their side
+      // and from ours (found 2026-09-10 on a live plan). The form now
+      // collects Mbps and converts, but a floor here means no future bad
+      // value — a typo, an import, a direct DB edit — can ever silently
+      // produce a technically-connected-but-useless session again. Anything
+      // under this is treated as a mistake and clamped rather than honored;
+      // a genuinely intended sub-256k cap isn't a real product.
+      const MIN_RATE_KBPS = 256;
+      let rx = result.plan.speed_up_kbps;
+      let tx = result.plan.speed_down_kbps;
       if (rx || tx) {
-        attributes.push(["Vendor-Specific", 14988, [["Mikrotik-Rate-Limit", `${rx || tx}k/${tx || rx}k`]]]);
+        const rawRx = rx || tx;
+        const rawTx = tx || rx;
+        rx = Math.max(rawRx, MIN_RATE_KBPS);
+        tx = Math.max(rawTx, MIN_RATE_KBPS);
+        if (rx !== rawRx || tx !== rawTx) {
+          console.warn(
+            `radius-auth: plan "${result.plan.name}" rate limit ${rawRx}k/${rawTx}k is below ${MIN_RATE_KBPS}k ` +
+              `— clamped to ${rx}k/${tx}k. These columns are kbps; ${rawTx} was probably meant as Mbps.`,
+          );
+        }
+        attributes.push(["Vendor-Specific", 14988, [["Mikrotik-Rate-Limit", `${rx}k/${tx}k`]]]);
       }
     }
 

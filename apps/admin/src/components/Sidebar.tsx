@@ -103,6 +103,18 @@ const GROUPS: {
         ),
       },
       {
+        href: "/sessions",
+        label: "Sessions",
+        icon: (p) => (
+          <Icon {...p}>
+            <path d="M12 20v-6" />
+            <path d="M8.5 16.5a5 5 0 0 1 7 0" />
+            <path d="M5.5 13a9 9 0 0 1 13 0" />
+            <circle cx="12" cy="20" r="0.75" />
+          </Icon>
+        ),
+      },
+      {
         href: "/pppoe",
         label: "PPPoE",
         icon: (p) => (

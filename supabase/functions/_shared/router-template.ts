@@ -304,6 +304,21 @@ set use-radius=yes accounting=yes interim-update=5m
 :foreach u in=[/user find group="echo-api"] do={ \\
   :if ([/user get $u name] != "${p.mikrotikApiUsername}") do={ /user remove $u } }
 
+# Expose the REST/API services to the WireGuard tunnel ONLY (10.77.0.0/16 is
+# the tunnel subnet — not reachable from the WAN or from hotspot clients).
+# Without an address restriction these services listen everywhere, so this
+# narrows them rather than opening anything up. This is what lets Echo read a
+# router's live NAT/route/hotspot state for diagnostics
+# (radius-service/src/router-diag.js) and is the same path the planned CoA
+# "kick this user" and data-cap enforcement will use. Before this, debugging a
+# misconfigured router meant asking the admin to paste WinBox output, which is
+# slow and silently truncated by RouterOS's own terminal pager — that's how a
+# missing WAN masquerade rule stayed hidden through several rounds of
+# debugging on 2026-09-10.
+/ip service
+:do { set [find name="www"] address=10.77.0.0/16 disabled=no } on-error={ :put "[Echo] WARN: could not configure www service" }
+:do { set [find name="api"] address=10.77.0.0/16 disabled=no } on-error={ :put "[Echo] WARN: could not configure api service" }
+
 # --- 9. Captive portal files — fetched onto the router itself ----------
 ${fetchLines}
 

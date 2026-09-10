@@ -218,11 +218,41 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (!voucher) return withCors({ valid: false, reason: "not_found" });
-      if (voucher.status !== "unused") return withCors({ valid: false, reason: voucher.status });
-      if (voucher.expires_at && new Date(voucher.expires_at) < new Date()) {
+
+      // A "used" voucher is NOT necessarily spent. radius-service's
+      // claimVoucher deliberately re-accepts the same code from the same
+      // device while it's still inside the plan's paid window, so a
+      // customer whose session dropped (phone died, walked out of range,
+      // router rebooted, idle timeout) can get back online with time still
+      // remaining — see the long comment on claimVoucher in
+      // radius-service/src/db.js. This route was still applying the old,
+      // stricter "used means gone forever" rule, so it told that customer
+      // "This code was already used." and refused to even submit the login
+      // form — blocking a reconnect that RADIUS would have granted, for
+      // access they had genuinely paid for (reported live 2026-09-10).
+      // The MAC check that stops one code being shared across devices lives
+      // in claimVoucher and still applies: this only decides whether it's
+      // worth attempting the login at all, never who gets access.
+      const withinPaidWindow = (() => {
+        if (voucher.status !== "used" || !voucher.redeemed_at) return false;
+        const durationMinutes = voucher.plans?.duration_minutes;
+        if (!durationMinutes) return true; // no time limit on the plan
+        return new Date(voucher.redeemed_at).getTime() + durationMinutes * 60_000 > Date.now();
+      })();
+
+      if (voucher.status !== "unused" && !withinPaidWindow) {
+        return withCors({ valid: false, reason: voucher.status });
+      }
+      // expires_at bounds when an UNUSED code may first be redeemed; it
+      // shouldn't cut short a session already running inside its paid window.
+      if (
+        voucher.status === "unused" &&
+        voucher.expires_at &&
+        new Date(voucher.expires_at) < new Date()
+      ) {
         return withCors({ valid: false, reason: "expired" });
       }
-      return withCors({ valid: true, plan: voucher.plans });
+      return withCors({ valid: true, plan: voucher.plans, reconnect: withinPaidWindow });
     }
 
     if (route === "return" && req.method === "GET") {
