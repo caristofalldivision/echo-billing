@@ -298,6 +298,40 @@ you change the code format or the normalization logic, update both; a
 mismatch means one boundary accepts a dash-less code and the other
 silently rejects it.
 
+**The provisioning script never actually sets up `ether1` as WAN — it
+always silently depended on RouterOS's factory-default DHCP client
+already being there.** Found 2026-09-10: a router reset with "no default
+configuration" (unlike a normal factory reset, this strips the
+default DHCP client on ether1 too) had zero WAN connectivity, and every
+single `/tool fetch` in the flow failed immediately — including the very
+first one, the bootstrap script's own fetch of the real setup script, so
+it failed almost instantly with no useful RouterOS error. Fixed by adding
+an idempotent WAN bring-up (`/ip dhcp-client add interface=ether1`,
+guarded on "does ether1 have any address at all", with a bounded 20s wait
+for a lease) as the first thing both `renderBootstrapScript` and
+`renderRouterScript` do. **This script assumes a DHCP-served WAN uplink
+on ether1 and nothing else** (no static-IP WAN, no PPPoE WAN) — if a
+deployment ever needs one of those, this section needs extending, not
+just skipping.
+
+**No firewall `filter` rules exist anywhere in the provisioning script —
+only NAT and the hotspot's own dynamic dstnat rules.** This was masked as
+long as routers kept their factory-default config (which typically ships
+with baseline filter rules protecting the router's own WAN-facing
+management services), but combined with the WAN-bring-up fix above, a
+router reset with "no default configuration" now gets a fully open WAN
+interface once this script's WAN-bring-up runs. The WireGuard tunnel
+itself is still address-restricted (only radius-service can reach it), so
+RADIUS/heartbeat aren't exposed, but the MikroTik API user created in
+section 8
+(`policy=api,read,write,rest-api`) and WinBox/SSH itself are not
+firewalled off from ether1 at all on such a router. Not fixed as part of
+the 2026-09-10 pass — adding filter rules blind (without a live router to
+test against) risks locking out the admin's own WinBox/SSH access, which
+is a much worse failure mode than the gap it would close. Whoever picks
+this up next should test against real hardware (or at minimum keep a
+console/serial fallback available) before shipping filter rules here.
+
 **A parameter used only in ambiguous positions (e.g. `$n is null` inside an
 `OR`) can make Postgres's own type inference fail even when the same
 parameter resolves unambiguously elsewhere in the same query.** Found
