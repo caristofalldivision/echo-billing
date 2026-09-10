@@ -36,7 +36,20 @@
 #   {{PROVISIONING_TOKEN}}       this device's heartbeat bearer token
 # ============================================================
 
-# --- 0. Clock sync — RouterOS validates TLS certs on the HTTPS fetches
+# --- 0a. WAN bring-up — every fetch below assumes ether1 can reach the
+#         internet. RouterOS's factory-default config normally has a DHCP
+#         client on ether1 doing this silently, but a router reset with
+#         "no default configuration" strips that too. Guarded on "does
+#         ether1 have any address at all" rather than "does a dhcp-client
+#         object exist", so this correctly no-ops on factory defaults, a
+#         static IP an admin already set, or a prior run of this same
+#         script — it only acts when ether1 truly has nothing. -----------
+:if ([:len [/ip address find interface=ether1]] = 0) do={ \
+  /ip dhcp-client add interface=ether1 disabled=no add-default-route=yes use-peer-dns=yes }
+:local wanWait 0
+:while ($wanWait < 20 and [:len [/ip address find interface=ether1]] = 0) do={ :delay 1s; :set wanWait ($wanWait + 1) }
+
+# --- 0b. Clock sync — RouterOS validates TLS certs on the HTTPS fetches
 #        below, and a wrong clock is the #1 cause of those silently
 #        failing on a router that's never synced time before. ------------
 /system ntp client set enabled=yes

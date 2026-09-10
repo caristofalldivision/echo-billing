@@ -70,7 +70,23 @@ export function renderRouterScript(p: RouterScriptParams): string {
 # Re-run is safe — sections are idempotent where practical.
 # ============================================================
 
-# --- 0. Clock sync — RouterOS validates TLS certs on the HTTPS fetches
+# --- 0a. WAN bring-up — every fetch below (captive portal files,
+#         heartbeat, this script's own delivery via renderBootstrapScript)
+#         assumes ether1 can reach the internet. RouterOS's factory-default
+#         config normally has a DHCP client on ether1 doing this silently,
+#         but a router reset with "no default configuration" strips that
+#         too — found 2026-09-10 when a from-scratch reset router had no
+#         WAN at all and every HTTPS fetch failed immediately. Guarded on
+#         "does ether1 have any address at all" rather than "does a
+#         dhcp-client object exist", so this correctly no-ops on factory
+#         defaults, a static IP an admin already set, or a prior run of
+#         this same script — it only acts when ether1 truly has nothing. --
+:if ([:len [/ip address find interface=ether1]] = 0) do={ \\
+  /ip dhcp-client add interface=ether1 disabled=no add-default-route=yes use-peer-dns=yes }
+:local wanWait 0
+:while ($wanWait < 20 and [:len [/ip address find interface=ether1]] = 0) do={ :delay 1s; :set wanWait ($wanWait + 1) }
+
+# --- 0b. Clock sync — RouterOS validates TLS certs on the HTTPS fetches
 #        below, and a wrong clock is the #1 cause of those silently
 #        failing on a router that's never synced time before. ------------
 /system ntp client set enabled=yes
@@ -264,16 +280,31 @@ export function renderBootstrapScript(functionsBaseUrl: string, provisioningToke
   // fetch is itself an HTTPS request, so if it's the clock breaking cert
   // validation, the fix needs to land before this line, not after it.
   //
-  // Deliberately ONE `;`-chained statement, not 5 separate lines. As 5
-  // lines, a paste that drops anything after the fetch (copy-paste from a
-  // web page truncating, WinBox scrollback confusion, retyping from a
-  // screenshot) leaves NTP configured and the file downloaded but /import
-  // never runs — RouterOS just silently stops, with no error, because
-  // every earlier line genuinely succeeded on its own. That exact failure
+  // WAN bring-up has to run here too, for the same reason, and it has to
+  // run FIRST — this entire bootstrap is itself the first HTTPS request the
+  // router ever makes, and every earlier version of this script silently
+  // depended on ether1 already having internet (true under RouterOS's
+  // factory-default config, which normally includes a DHCP client on
+  // ether1 — false the moment someone resets a router with "no default
+  // configuration", which strips that too). Found 2026-09-10: a from-scratch
+  // reset router failed at this very first step with no WAN at all, even
+  // though the exact same script had worked minutes earlier on a router
+  // that still had its factory-default DHCP client. `/ip address find
+  // interface=ether1` (not "does a dhcp-client object exist") is the guard,
+  // so this correctly no-ops whether ether1 already has an address via
+  // factory-default DHCP, a prior run of this same script, or an admin's
+  // own static IP — it only acts when ether1 truly has nothing.
+  //
+  // Deliberately ONE `;`-chained statement, not many separate lines. As
+  // separate lines, a paste that drops anything after the fetch (copy-paste
+  // from a web page truncating, WinBox scrollback confusion, retyping from
+  // a screenshot) leaves everything before that line genuinely applied but
+  // /import never runs — RouterOS just silently stops, with no error,
+  // because every earlier line succeeded on its own. That exact failure
   // mode has hit real users repeatedly. As one statement, RouterOS either
   // runs the whole thing start to finish or doesn't parse it at all —
   // there's nothing left to drop partway through. :put markers give visible
   // progress instead of the bare fetch status block being the only output.
-  return `:put "[Echo] 1/2 — syncing clock, fetching setup script..."; /system ntp client set enabled=yes; :if ([:len [/system ntp client servers find address="pool.ntp.org"]] = 0) do={ /system ntp client servers add address=pool.ntp.org }; :delay 5s; /tool fetch url="${functionsBaseUrl}/provisioning-fetch?token=${provisioningToken}" dst-path="echo-setup.rsc" mode=https; :put "[Echo] 2/2 — running full setup (WireGuard, hotspot, RADIUS, captive portal)..."; /import file-name=echo-setup.rsc; :put "[Echo] Bootstrap finished. Look for 'Echo provisioning complete' just above — if it's missing, something failed partway; scroll up for the error."
+  return `:put "[Echo] 1/4 — bringing up WAN (ether1)..."; :if ([:len [/ip address find interface=ether1]] = 0) do={ /ip dhcp-client add interface=ether1 disabled=no add-default-route=yes use-peer-dns=yes }; :local wanWait 0; :while ($wanWait < 20 and [:len [/ip address find interface=ether1]] = 0) do={ :delay 1s; :set wanWait ($wanWait + 1) }; :put "[Echo] 2/4 — syncing clock..."; /system ntp client set enabled=yes; :if ([:len [/system ntp client servers find address="pool.ntp.org"]] = 0) do={ /system ntp client servers add address=pool.ntp.org }; :delay 5s; :put "[Echo] 3/4 — fetching setup script..."; /tool fetch url="${functionsBaseUrl}/provisioning-fetch?token=${provisioningToken}" dst-path="echo-setup.rsc" mode=https; :put "[Echo] 4/4 — running full setup (WireGuard, hotspot, RADIUS, captive portal)..."; /import file-name=echo-setup.rsc; :put "[Echo] Bootstrap finished. Look for 'Echo provisioning complete' just above — if it's missing, something failed partway; scroll up for the error."
 `;
 }
