@@ -298,6 +298,52 @@ you change the code format or the normalization logic, update both; a
 mismatch means one boundary accepts a dash-less code and the other
 silently rejects it.
 
+**A parameter used only in ambiguous positions (e.g. `$n is null` inside an
+`OR`) can make Postgres's own type inference fail even when the same
+parameter resolves unambiguously elsewhere in the same query.** Found
+2026-09-10, live: `radius-service/src/db.js`'s `claimVoucher` had
+`(v.claimed_mac_address is null or $2 is null or v.claimed_mac_address = $2)`
+— despite `$2` also appearing (and being resolvable to `text`) in the
+`coalesce()` in the `SET` clause and in the `= $2` comparison in that very
+same `OR`, Postgres's parameter-type inference (which runs against the
+query text alone, before any values are bound) bailed on the `$2 is null`
+branch and threw `42P08 could not determine data type of parameter $2` on
+*every single call* — silently caught by `radius-auth.js`'s try/catch,
+logged, and turned into a REJECT. This meant every voucher claim rejected
+unconditionally, RADIUS-wide, for both "I have a voucher" redemptions and
+the auto-connect step right after a successful Pesapal payment (both call
+this same function) — the captive portal would show "Valid" (that's just
+`check-voucher`, a separate read-only check) and then the customer never
+actually got connected. Found by reading `fly logs -a echo-radius` and
+seeing the real router's REJECTs, then reproduced standalone against the
+live DB before fixing. Fixed by casting `$2::text` at each occurrence.
+**If you add a new nullable parameter to a claim/update query like this,
+cast it explicitly wherever it appears — don't rely on one unambiguous
+usage elsewhere in the same statement to save the others.**
+
+**Navigating to an external HTTPS site (`window.location.href = url`) from
+inside an async callback — after an `await fetch(...)`, not straight from a
+click handler — can silently fail or show an "unverified page / open in
+browser" prompt inside a mobile OS's captive-portal mini-browser** (Apple's
+Captive Network Assistant, Android's equivalent). These mini-browsers tie
+whether they'll follow a top-level navigation to an external domain to
+whether it's still directly associated with the user's own gesture; an
+`await` in between is enough to lose that association on stricter
+devices/OS versions, and this varied by device in exactly the way it was
+reported (works on some phones, "not verified"/"open in browser" on
+others) — found 2026-09-10 in `apps/captive-portal/src/main.js`'s Pesapal
+purchase flow. Before assuming this means the walled garden is missing a
+domain (see the Pesapal-checkout-scripts gotcha above), re-`curl` the
+actual checkout page first — in this case the domain list was already
+complete. Fixed by rendering a real, explicitly-tapped `<a href>` ("Continue
+to secure payment") once the order is created, instead of auto-navigating,
+so the tap itself carries the gesture. This is specific to leaving the
+captive portal's own origin (the Pesapal redirect) — the MikroTik hotspot
+login form's own `.submit()` (used for both voucher redemption and
+post-payment auto-connect) is a local POST back to the router's own
+`$(link-login-only)`, not a cross-origin navigation, and isn't subject to
+this restriction.
+
 **RouterOS scheduler `add` with `:if ([:len [find name=...]] = 0)` only
 creates a scheduler once — it never updates an existing one's `on-event`.**
 Re-running provisioning after changing a scheduler's logic (as happened
@@ -354,6 +400,22 @@ low-QPS doesn't justify a shared cache tier). All deployed. **Not yet
 verified**: whether the walled-garden/DNS fix actually shortens the
 real-world redirect time on hardware — needs a router re-provision and a
 live retest, not yet done as of this writing.
+
+**2026-09-10 fix:** the "hotspot voucher purchase working end to end" claim
+above regressed without anyone noticing — the MAC-binding change
+(`claimed_mac_address`) broke `claimVoucher` outright (see the Postgres
+param-type-inference gotcha above), so **every** voucher claim had been
+silently rejecting since that landed, for both manual voucher entry and the
+post-payment auto-connect. Found via live Fly logs, fixed, redeployed,
+re-verified against prod. Also hardened the Pesapal redirect against mobile
+captive-browser gesture-loss (see gotcha above), and started migrating the
+captive portal's asset host from the raw Supabase Storage URL to
+`captive.echoisp.click` — see `apps/captive-portal/README.md`'s "Building
+for a router" section; **the live project's `CAPTIVE_PORTAL_BASE_URL`
+secret is still pinned to the old Storage URL** until that domain is
+actually hosting the build. Repo moved to
+`github.com/caristofalldivision/echo-billing` (`main`); Vercel deployment
+is on the user from here.
 
 **Fly.io gotcha:** the account this project's `flyctl` is logged into
 (`echonet25@gmail.com`) has a *second*, unrelated app called
