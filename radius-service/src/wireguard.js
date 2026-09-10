@@ -32,10 +32,11 @@ function bootstrapInterface() {
   }
 }
 
-// Reconciles wg0's peer list against mikrotik_devices. Additive only for
-// now (removing a device in the admin portal doesn't yet tear down its
-// peer) — acceptable for the initial rollout, tighten up once device
-// deletion is a real admin-portal flow.
+// Reconciles wg0's peer list against mikrotik_devices — both directions.
+// Device deletion is now a real admin-portal flow, so this also removes any
+// peer currently on the interface that no longer has a matching row, which
+// is what actually tears down a deleted device's WireGuard access (this
+// used to be additive-only, see CLAUDE.md Phase 4 roadmap history).
 async function syncPeers() {
   let peers;
   try {
@@ -44,6 +45,8 @@ async function syncPeers() {
     console.error("wireguard: could not list peers from db", err.message);
     return;
   }
+
+  const desiredPubkeys = new Set(peers.map((p) => p.wireguard_client_pubkey));
 
   for (const peer of peers) {
     const allowedIp = peer.wireguard_tunnel_ip; // already a /32
@@ -54,6 +57,25 @@ async function syncPeers() {
     } catch (err) {
       console.warn(`wireguard: failed to sync peer for device ${peer.name} — ${err.message}`);
     }
+  }
+
+  try {
+    const currentPubkeys = sh(`wg show ${IFACE} peers`)
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    for (const pubkey of currentPubkeys) {
+      if (!desiredPubkeys.has(pubkey)) {
+        try {
+          sh(`wg set ${IFACE} peer ${pubkey} remove`);
+          console.log(`wireguard: removed stale peer ${pubkey} (no matching device row)`);
+        } catch (err) {
+          console.warn(`wireguard: failed to remove stale peer ${pubkey} — ${err.message}`);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`wireguard: could not list current peers for cleanup — ${err.message}`);
   }
 }
 

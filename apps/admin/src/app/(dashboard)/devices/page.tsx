@@ -27,6 +27,8 @@ export default function DevicesPage() {
   const [loadingScript, setLoadingScript] = useState(false);
   const [scriptError, setScriptError] = useState<string | null>(null);
   const [confirmRegenerateId, setConfirmRegenerateId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [bootstrapCopied, setBootstrapCopied] = useState(false);
@@ -82,6 +84,27 @@ export default function DevicesPage() {
     if (!ipListFor) return;
     await supabase.from("ip_allowlist").delete().eq("id", id);
     loadIpEntries(ipListFor);
+  }
+
+  // Deleting a device row also revokes it: radius-service's syncPeers()
+  // tears down the matching WireGuard peer on its next reconciliation pass
+  // (runs every WIREGUARD_PEER_SYNC_INTERVAL_MS, 30s by default), and RLS
+  // means the row is really gone, not just hidden — vouchers/PPPoE accounts
+  // that had referenced this device just become unassigned (migration
+  // 0010_device_deletion.sql), they aren't deleted. A still-provisioned
+  // router isn't reset by this — its own config keeps running — it just
+  // loses its RADIUS/heartbeat path back to Echo, so it stops authenticating
+  // anyone until it's re-provisioned with a fresh device row.
+  async function deleteDevice(id: string) {
+    setDeletingId(id);
+    const { error } = await supabase.from("mikrotik_devices").delete().eq("id", id);
+    setDeletingId(null);
+    if (error) {
+      setLoadError(`Couldn't delete: ${error.message}`);
+      return;
+    }
+    setConfirmDeleteId(null);
+    load();
   }
 
   async function copyBootstrap() {
@@ -276,7 +299,28 @@ export default function DevicesPage() {
                     {d.last_seen_at ? new Date(d.last_seen_at).toLocaleString() : "never"}
                   </td>
                   <td className="py-2 pr-4">
-                    {confirmRegenerateId === d.id ? (
+                    {confirmDeleteId === d.id ? (
+                      <span className="flex items-center gap-2">
+                        <span className="text-xs text-signal-alert">
+                          {d.status === "linked"
+                            ? "This router is active — deleting it cuts off its RADIUS/heartbeat access immediately."
+                            : "Delete this device? Its vouchers/PPPoE accounts stay, just unassigned."}
+                        </span>
+                        <button
+                          className="text-sm font-medium text-signal-alert"
+                          disabled={deletingId === d.id}
+                          onClick={() => deleteDevice(d.id)}
+                        >
+                          {deletingId === d.id ? "Deleting…" : "Delete anyway"}
+                        </button>
+                        <button
+                          className="text-sm font-medium text-signal-ink-dim"
+                          onClick={() => setConfirmDeleteId(null)}
+                        >
+                          Cancel
+                        </button>
+                      </span>
+                    ) : confirmRegenerateId === d.id ? (
                       <span className="flex items-center gap-2">
                         <span className="text-xs text-signal-alert">This will disconnect it.</span>
                         <button
@@ -306,11 +350,25 @@ export default function DevicesPage() {
                         >
                           Regenerate credentials
                         </button>
+                        <button
+                          className="text-xs font-medium text-signal-ink-dim hover:text-signal-alert"
+                          onClick={() => setConfirmDeleteId(d.id)}
+                        >
+                          Delete
+                        </button>
                       </span>
                     ) : (
-                      <button className="btn-secondary py-1.5" onClick={() => handleGenerateScript(d.id)}>
-                        Get setup script
-                      </button>
+                      <span className="flex items-center gap-3">
+                        <button className="btn-secondary py-1.5" onClick={() => handleGenerateScript(d.id)}>
+                          Get setup script
+                        </button>
+                        <button
+                          className="text-xs font-medium text-signal-ink-dim hover:text-signal-alert"
+                          onClick={() => setConfirmDeleteId(d.id)}
+                        >
+                          Delete
+                        </button>
+                      </span>
                     )}
                   </td>
                 </tr>
