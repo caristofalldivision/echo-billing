@@ -298,6 +298,102 @@ you change the code format or the normalization logic, update both; a
 mismatch means one boundary accepts a dash-less code and the other
 silently rejects it.
 
+**MikroTik has TWO walled gardens and they are not interchangeable —
+`/ip hotspot walled-garden` is HTTP-only.** It matches on the `Host:`
+header through the hotspot's proxy, which simply does not exist for TLS.
+Everything HTTPS pre-login is governed by the separate
+`/ip hotspot walled-garden ip` menu. For months only the HTTP one was
+populated, so *every* HTTPS call the captive portal makes before a
+customer authenticates — plans, theme, `purchase`, `check-voucher`,
+`status` polling, and Pesapal's own hosted checkout — was being
+intercepted by the hotspot rather than allowed out. Found 2026-09-10.
+The two symptoms looked unrelated and were the same bug: on Android, "the
+network you are trying to join has security issues / the login page may
+not belong to the organisation shown" (RouterOS can only answer an
+intercepted TLS connection with its own cert, which doesn't match
+`supabase.co`), and on iOS the purchase failing the instant the customer
+submits their phone number (the `fetch` never completes). Vouchers fail
+identically — same HTTPS calls. Fixed in section 7b of
+`router-template.ts` using `dst-host` entries (RouterOS resolves those
+into dynamic address entries, so it tracks CDN IP changes instead of
+pinning addresses that rot). **If you add a host to section 7, add it to
+7b too** — HTTP-only allowance is almost never what you actually want.
+
+**A parse-time reference to a menu that doesn't exist aborts the ENTIRE
+`/import`, silently.** RouterOS resolves menu paths at parse time, not
+runtime, so `/interface wireless find` on a board without the wireless
+package (RB760iGS/hEX S — wired-only) killed the whole provisioning run
+at section 2. Every later section never executed: WAN masquerade, DHCP,
+DNS, RADIUS, hotspot, portal files, heartbeat. It presented as
+"authenticates fine but no internet", because the hotspot/RADIUS config
+the router *did* have was leftover from earlier runs while the masquerade
+rule — which this script is the only thing that ever creates — had never
+been added even once. Anything touching a possibly-absent menu must be
+wrapped in `:do {...} on-error={...}`. Section 12's self-check exists
+specifically so this class of failure announces itself instead of being
+inferred from customer symptoms hours later.
+
+**Provisioning a NEW device onto a router that already has Echo config
+must overwrite, not merge.** The script was add-if-missing everywhere,
+which is wrong the moment a device row is deleted and the same physical
+router is re-provisioned as a new device: the router kept its OLD
+WireGuard private key (so the handshake never even started — confirmed
+via `wg show wg0 latest-handshakes` reading 0 with endpoint `(none)`,
+while radius-service had correctly dropped the stale peer), and the
+`echo-heartbeat`/`echo-ip-sync` schedulers kept POSTing a deleted
+device's `provisioning_token`. WireGuard key/address, the RADIUS entry,
+the scheduler `on-event` strings and the API user password are now all
+SET when they already exist. Note this is the deliberate-re-provision
+case, and is *not* in tension with the scheduler guidance below, which is
+about introducing new scheduled behaviour without disturbing existing
+routers.
+
+**`plans.speed_*_kbps` are kbps, and a wrong unit here is
+indistinguishable from an outage.** A live plan meant to be 5 Mbps was
+stored as `5` — 5 kbps — because the admin form was labelled "Down
+(Kbps)" while the admin quite reasonably typed the Mbps figure they sell.
+RADIUS handed the router `Mikrotik-Rate-Limit 5k/5k`; customers
+authenticated perfectly, got an IP, and then had a connection so
+throttled nothing loaded at all. From both the customer's side and the
+logs this is identical to "connected but no internet", and it cost hours.
+The plan form now collects **Mbps** and converts on save, and
+`radius-auth.js` clamps anything under 256 kbps up to that floor with a
+loud warning naming the likely unit mistake. Don't remove the clamp — a
+sub-256k cap is not a real product, and the failure it prevents is
+invisible.
+
+**Never let `reconcileTransaction` treat a fresh "Failed" from Pesapal as
+terminal.** `/status` polls every 3s starting immediately after the order
+is created, so it routinely catches Pesapal mid-flight, before the
+customer has even acted on the STK prompt. A transaction written as
+`failed` is never re-checked again (the guard at the top skips it), so a
+payment that Pesapal later completed — confirmed live, with a real M-Pesa
+confirmation code — left the customer charged with no voucher, no SMS and
+no recovery path. There is now a 45s grace window before "Failed" is
+accepted; `reconcile-pending`'s sweep keeps checking throughout, so this
+costs nothing.
+
+**"Used" does not mean "spent" for vouchers, and `check-voucher` must
+agree with `claimVoucher`.** `radius-service` deliberately re-accepts the
+same code from the same MAC while still inside the plan's paid window
+(see the `claimVoucher` guardrail above), but `portal-api`'s
+`check-voucher` was still applying the old strict rule and told a
+customer whose session had dropped "This code was already used." — then
+refused to submit the login form at all, blocking a reconnect RADIUS
+would have granted for time they'd paid for. It now returns
+`valid:true, reconnect:true` inside that window. The anti-sharing MAC
+check stays in `claimVoucher`: `check-voucher` only decides whether
+attempting the login is worthwhile, never who actually gets access.
+
+**The captive portal must never swallow the reason a request failed.**
+The purchase flow caught everything and rendered one bare "Payment didn't
+go through", so a walled-garden problem, a Pesapal credential problem and
+a genuine decline were indistinguishable — and when the request never
+left the phone there was nothing server-side to inspect either. That is
+precisely the state in which the HTTPS walled-garden bug above hid. Both
+the purchase and voucher paths now surface the real error and explicitly
+name a fetch that never left the device as a network-reach problem.
+
 **The provisioning script never actually sets up `ether1` as WAN — it
 always silently depended on RouterOS's factory-default DHCP client
 already being there.** Found 2026-09-10: a router reset with "no default
@@ -460,6 +556,82 @@ against `fly apps list` before deploying — don't scale or deploy onto the
 wrong app. `echo-radius` itself is deliberately 1 machine (see
 `radius-service/README.md` on WireGuard session-affinity if that's ever
 tempting to change).
+
+## Where things stand — end of 2026-09-10 session
+
+Long live-debugging session against the real RB760iGS. Payments, voucher
+issuance and fulfilment were never actually the problem; nearly every
+symptom traced to router-side provisioning config. Fixed and deployed
+this session (all verified live, not just committed): the RADIUS
+`claimVoucher` 42P08 query bug, the WireGuard identity-drift on
+re-provision, the wired-only-board `/import` abort, the missing HTTPS
+walled garden, the 5 kbps rate-limit unit bug, the premature `failed`
+transaction status, `check-voucher` blocking legitimate reconnects, and
+RADIUS Stop packets discarding byte counters. Also added: device deletion
++ WireGuard peer teardown, an admin Sessions page, self-service payment
+recovery by phone number, verified auto-reconnect, `router-diag.js`, and
+the provisioning self-check.
+
+**Verified working at session end:** a PC and an iPhone 11 both completed
+the full flow — captive portal → payment → voucher → connected with
+working internet.
+
+**Still open, and the immediate next task — Android/Oppo Reno.** It still
+shows "the network you are trying to join has security issues / the login
+page may not belong to the organisation shown", and "Login via browser"
+also fails. Diagnosis (high confidence, not yet implemented): Android
+probes **both** `http://connectivitycheck.gstatic.com/generate_204` and
+`https://www.google.com/generate_204`. Section 7b now lets Supabase and
+Pesapal out, but the hotspot still MITMs *every other* HTTPS connection —
+including that HTTPS probe — so Android gets a certificate that isn't
+Google's, concludes the network intercepts TLS, and refuses. The standard
+MikroTik remedy is to stop intercepting HTTPS at all and let it fail
+cleanly instead, by appending a catch-all reject to the IP walled garden:
+
+```
+/ip hotspot walled-garden ip
+add action=reject protocol=tcp dst-port=443 comment=echo-https-reject
+```
+
+Ordering is load-bearing — `/ip hotspot walled-garden ip` is evaluated in
+order, so this must always be **last**, after 7b's accepts. On a re-run,
+remove any existing `comment=echo-https-reject` entry and re-add it at
+the end, or newly-added accepts will sit behind it and be shadowed. Do
+**not** also allow the probe hosts on 443: if Android's HTTPS probe
+*succeeds* it concludes there's no captive portal and never opens the
+login page at all. Reject (TCP reset), not drop — clients must fail fast
+rather than hang. This is also expected to fix the "captive → payment →
+captive round-trip is very slow" complaint on iPhone, since that slowness
+is those same intercepted HTTPS connections hanging until timeout.
+
+**Also open / worth knowing:**
+- `router-diag.js` still can't reach the router (`EHOSTUNREACH`, then
+  `timeout`). The `/ip service` tunnel restriction that would enable it
+  only landed in the script recently and the router hasn't been
+  re-provisioned since. Re-run provisioning, then
+  `fly ssh console -a echo-radius -C "node /app/src/router-diag.js"`
+  gives the router's live NAT/routes/hotspot/scheduler tables directly —
+  far better than asking for WinBox output, which RouterOS's own terminal
+  pager silently truncates (that truncation is part of why the missing
+  masquerade rule stayed hidden).
+- `captive.echoisp.click` returns 404 at the bare root. This is expected
+  (the app has no `index.html`; RouterOS requires `login.html`) and all 7
+  fetched files return 200 — but it is a bad smell test for a human, and
+  a `/` → `/login.html` redirect on the Vercel project was offered and
+  not yet added.
+- `captive_portal_themes.success_redirect_url` exists (migration 0011)
+  and the portal honours it, but there is **no admin UI field for it
+  yet** — it has to be set directly in the DB. The user asked for
+  `www.acyninnovation.com`; prefer an `http://` URL, since it loads at
+  the moment the session flips to authenticated and some devices reuse
+  the captive-portal mini-browser for it.
+- The user re-created the device row many times while debugging (Test1 →
+  test2/new → mainrouter). Each new device mints a new keypair, tunnel IP
+  and provisioning token, so always re-read the current token from
+  `mikrotik_devices` before rendering or testing a script — cached tokens
+  404.
+- Still no firewall `filter` rules anywhere in the script (see the
+  gotcha above). Unchanged this session and deliberately not fixed blind.
 
 ## Roadmap
 
