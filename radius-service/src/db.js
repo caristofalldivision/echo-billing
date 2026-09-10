@@ -105,7 +105,19 @@ async function upsertActiveSession(session) {
   );
 }
 
-async function deleteActiveSession(deviceId, acctSessionId) {
+// finalBytesIn/finalBytesOut come from the Accounting-Stop packet's own
+// Acct-Input-Octets/Acct-Output-Octets. Previously ignored entirely: the
+// history row was built purely from whatever interim-update had last
+// written to active_sessions, so a session with no interim updates (the
+// normal case for short hotspot sessions — RouterOS only sends interims if
+// the profile asks for them) landed in session_history with bytes_in=0,
+// bytes_out=0 even when the customer had actually used data. That made
+// "data used" reporting silently wrong and, more importantly, makes
+// plans.data_cap_mb unenforceable (Phase 4 roadmap item #2) since the
+// numbers it would key off were always zero. The Stop packet carries the
+// authoritative final totals, so prefer them and fall back to the stored
+// running values when absent.
+async function deleteActiveSession(deviceId, acctSessionId, finalBytesIn, finalBytesOut) {
   // Was a plain delete — the row (and its bytes_in/bytes_out) just vanished
   // on Stop, so "data used" could only ever reflect whoever happened to be
   // online right now. Moves it into session_history instead, in one atomic
@@ -121,9 +133,11 @@ async function deleteActiveSession(deviceId, acctSessionId) {
        (org_id, mikrotik_device_id, session_type, username, framed_ip, mac_address,
         acct_session_id, session_start, session_end, bytes_in, bytes_out)
      select org_id, mikrotik_device_id, session_type, username, framed_ip, mac_address,
-            acct_session_id, session_start, now(), bytes_in, bytes_out
+            acct_session_id, session_start, now(),
+            greatest(bytes_in, coalesce($3::bigint, 0)),
+            greatest(bytes_out, coalesce($4::bigint, 0))
        from moved`,
-    [deviceId, acctSessionId],
+    [deviceId, acctSessionId, finalBytesIn ?? null, finalBytesOut ?? null],
   );
 }
 

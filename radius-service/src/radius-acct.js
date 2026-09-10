@@ -45,8 +45,15 @@ async function handleAccounting(packet, sourceIp) {
   if (!username || !acctSessionId) return;
 
   if (statusType === "Stop") {
-    await db.deleteActiveSession(device.id, acctSessionId);
-    console.log(`radius-acct: session stop ${username} (${acctSessionId})`);
+    // Pass the Stop packet's own final octet counters through — without
+    // them a session that never sent an interim update was archived as
+    // 0 bytes regardless of real usage (see deleteActiveSession).
+    const finalIn = Number(packet.attributes["Acct-Input-Octets"] ?? 0);
+    const finalOut = Number(packet.attributes["Acct-Output-Octets"] ?? 0);
+    await db.deleteActiveSession(device.id, acctSessionId, finalIn, finalOut);
+    console.log(
+      `radius-acct: session stop ${username} (${acctSessionId}) in=${finalIn} out=${finalOut}`,
+    );
     return;
   }
 
