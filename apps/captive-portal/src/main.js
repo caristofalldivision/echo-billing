@@ -124,7 +124,16 @@ $("#purchase-form").addEventListener("submit", async (e) => {
     }
     pollTransaction(data.transactionId);
   } catch (err) {
-    showFailure();
+    // Surface what actually went wrong. This used to call showFailure()
+    // with no argument, so every distinct cause — the API unreachable
+    // because a domain isn't in the router's walled garden, a Pesapal
+    // credential problem, a plan that vanished, a genuine decline — all
+    // rendered as the same bare "Payment didn't go through." A customer
+    // reported it as "failed instantly" and there was nothing in the UI,
+    // and nothing server-side either (the request never arrived), to say
+    // why. The message is the only diagnostic that exists at that point,
+    // so it has to carry the real reason.
+    showFailure(err instanceof Error ? err.message : String(err));
   }
 });
 
@@ -198,9 +207,24 @@ function showSuccess(voucherCode) {
   }
 }
 
-function showFailure() {
+function showFailure(reason) {
   $("#purchase-status").classList.add("hidden");
   $("#purchase-failed").classList.remove("hidden");
+  // A network-layer fetch rejection ("Failed to fetch"/"Load failed") means
+  // the request never left the phone, which on a hotspot almost always means
+  // the API host isn't reachable pre-login rather than anything being wrong
+  // with the payment. Say so, because the customer-facing wording otherwise
+  // sends them to their bank or M-Pesa for a problem on our side.
+  const el = $("#failure-reason");
+  if (!el) return;
+  if (!reason) {
+    el.textContent = "";
+    return;
+  }
+  const networkish = /failed to fetch|load failed|networkerror|typeerror/i.test(reason);
+  el.textContent = networkish
+    ? `Couldn't reach the payment service from this network (${reason}). Your money was not taken.`
+    : reason;
 }
 
 $("#retry-purchase").addEventListener("click", () => {
@@ -352,8 +376,16 @@ $("#voucher-form").addEventListener("submit", async (e) => {
         revoked: "This code is no longer valid. Please contact support.",
       }[data.reason] ?? "Code not found. Check and try again.";
     }
-  } catch {
-    messageEl.textContent = "Couldn't verify the code — check your connection.";
+  } catch (err) {
+    // Same reasoning as the purchase flow's showFailure(): a bare "check
+    // your connection" hides the one useful fact, which is whether the
+    // request reached us at all. On a hotspot, a fetch that never leaves the
+    // phone means the API host isn't reachable before login — a router
+    // walled-garden problem, not the customer's connection or their code.
+    const reason = err instanceof Error ? err.message : String(err);
+    messageEl.textContent = /failed to fetch|load failed|networkerror/i.test(reason)
+      ? `Couldn't reach the server from this network (${reason}). This is a setup problem, not your code.`
+      : `Couldn't verify the code: ${reason}`;
   }
 });
 
@@ -377,6 +409,16 @@ async function applyBranding() {
       }`.trim();
     }
     if (theme.terms_text) $("#terms").textContent = theme.terms_text;
+    // Where RouterOS sends the customer once the login actually succeeds.
+    // Left alone, that's $(link-orig) — whatever their phone happened to be
+    // requesting when the portal intercepted it, which is usually the OS's
+    // own captive-portal probe or an HTTPS URL the hotspot could only serve
+    // with a mismatched certificate (the "this login page might not belong
+    // to the organisation shown" warning). Pointing it at a real page the
+    // admin controls gives an unambiguous "you're online" landing instead.
+    if (theme.success_redirect_url) {
+      $("#mt-dst").value = theme.success_redirect_url;
+    }
   } catch {
     // fall back to the defaults already in login.html
   }

@@ -47,6 +47,17 @@ export interface RouterScriptParams {
 }
 
 export function renderRouterScript(p: RouterScriptParams): string {
+  // Bare hostname of the Supabase project, for the HTTPS walled garden
+  // (section 7b) — that menu matches hosts/addresses, not URLs, so it needs
+  // "abc.supabase.co" rather than the full functions base URL.
+  const functionsHost = (() => {
+    try {
+      return new URL(p.functionsBaseUrl).hostname;
+    } catch {
+      return p.functionsBaseUrl.replace(/^https?:\/\//, "").split("/")[0];
+    }
+  })();
+
   // dst-path is deliberately "flash/hotspot/..." and not the bare "hotspot/...".
   // The hotspot profile's html-directory=hotspot (section 5 below) resolves to
   // the real on-disk flash/hotspot/ — that's where RouterOS auto-installs its
@@ -286,6 +297,36 @@ set use-radius=yes accounting=yes interim-update=5m
 :foreach domain in={"*.supabase.co"; "*.pesapal.com"; "pesapal.com"; "cybqa.pesapal.com"; \\
     "h.online-metrix.net"; "songbird.cardinalcommerce.com"; "www.googletagmanager.com"} do={ \\
   :if ([:len [find dst-host=$domain]] = 0) do={ add dst-host=$domain action=allow } }
+
+# --- 7b. Walled garden for HTTPS — a SEPARATE menu, and the one that
+#         actually mattered. MikroTik has two walled gardens and they are not
+#         interchangeable: "/ip hotspot walled-garden" (section 7 above) is
+#         HTTP-only — it matches on the Host: header via the hotspot's proxy,
+#         which does not exist for TLS. Everything HTTPS is governed by
+#         "/ip hotspot walled-garden ip", which nothing here ever populated.
+#
+#         So every HTTPS request the captive portal makes before login — which
+#         is ALL of them: the plans list, the theme, starting a payment,
+#         checking a voucher, polling payment status, and Pesapal's own
+#         checkout page — was being intercepted by the hotspot instead of
+#         allowed out. Two symptoms, one cause, both reported live 2026-09-10:
+#         Android refuses the intercepted TLS connection and warns that "the
+#         login page might not belong to the organisation shown" (RouterOS can
+#         only answer with its own certificate, which of course does not match
+#         supabase.co), and on iOS the fetch simply never completes, so the
+#         purchase fails the instant the customer submits their number. Buying
+#         and voucher redemption fail the same way because they use the same
+#         HTTPS calls.
+#
+#         dst-host here is resolved by RouterOS into dynamic address entries,
+#         so this follows the CDN IP changes behind these names instead of
+#         pinning addresses that would rot. Keep this list in step with
+#         section 7.
+/ip hotspot walled-garden ip
+:foreach h in={"${functionsHost}"; "pesapal.com"; "www.pesapal.com"; "cybqa.pesapal.com"; \\
+    "pay.pesapal.com"; "h.online-metrix.net"; "songbird.cardinalcommerce.com"} do={ \\
+  :if ([:len [find dst-host=$h]] = 0) do={ add action=accept dst-host=$h } }
+:put "[Echo] 7b/  HTTPS walled-garden OK"
 
 # --- 8. API user for Echo's provisioning/remote-management calls -------
 /user group
