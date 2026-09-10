@@ -29,12 +29,27 @@ async function findDeviceByTunnelIp(ip) {
 // claims of the same code still can't both succeed; Postgres's row lock
 // during the UPDATE serializes them, so the second one re-evaluates the
 // WHERE clause against the already-updated row.
+//
+// $2 is explicitly cast to ::text everywhere it appears. Without the cast,
+// Postgres's parameter-type inference (which runs against the query text
+// alone, before any values are bound) fails with "could not determine data
+// type of parameter $2" the moment `$2 is null` appears as one branch of an
+// OR — even though `v.claimed_mac_address = $2` elsewhere in the very same
+// OR would otherwise resolve it to text. Confirmed live: this was silently
+// rejecting every single claimVoucher call in production (found 2026-09-10
+// via radius-service's Fly logs — every real router auth attempt showed
+// "authenticate() error ... 42P08" followed by REJECT), which is what made
+// vouchers show "valid" on the captive portal but never actually connect —
+// check-voucher only validates the code, claimVoucher (via RADIUS) is what
+// actually grants access, and it was unconditionally failing regardless of
+// which code or MAC was passed in. Reproduced and verified fixed by
+// round-tripping this exact query against the live DB before deploying.
 async function claimVoucher(code, macAddress) {
   const { rows } = await pool.query(
     `update vouchers v
         set status = 'used',
             redeemed_at = coalesce(v.redeemed_at, now()),
-            claimed_mac_address = coalesce(v.claimed_mac_address, $2)
+            claimed_mac_address = coalesce(v.claimed_mac_address, $2::text)
        from plans p
       where v.code = $1
         and v.plan_id = p.id
@@ -42,7 +57,7 @@ async function claimVoucher(code, macAddress) {
              (v.status = 'unused' and (v.expires_at is null or v.expires_at > now()))
           or (
                v.status = 'used'
-               and (v.claimed_mac_address is null or $2 is null or v.claimed_mac_address = $2)
+               and (v.claimed_mac_address is null or $2::text is null or v.claimed_mac_address = $2::text)
                and (p.duration_minutes is null or v.redeemed_at + (p.duration_minutes || ' minutes')::interval > now())
              )
            )

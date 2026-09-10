@@ -79,8 +79,8 @@ $("#purchase-form").addEventListener("submit", async (e) => {
 
   $("#purchase-form").classList.add("hidden");
   $("#purchase-status").classList.remove("hidden");
-  $("#status-text").textContent = "Waiting for M-Pesa confirmation…";
-  $("#status-subtext").textContent = "Check your phone for the STK push prompt — usually takes 5–15 seconds.";
+  $("#status-text").textContent = "Setting up your payment…";
+  $("#status-subtext").textContent = "Just a moment.";
   $("#status-elapsed").textContent = "";
 
   try {
@@ -93,15 +93,26 @@ $("#purchase-form").addEventListener("submit", async (e) => {
     if (!res.ok) throw new Error(data.error ?? "Could not start payment");
 
     if (data.redirectUrl) {
-      // Full-page redirect, not a popup — MikroTik hotspot logins are
-      // typically opened inside the OS's restricted captive-portal
+      // Not an automatic window.location.href here, and not a popup either.
+      // MikroTik hotspot logins run inside the OS's restricted captive-portal
       // mini-browser (Apple's Captive Network Assistant, Android's
-      // equivalent), which is known to block/mishandle window.open(). This
-      // page is what actually triggers the M-Pesa STK push; there's no
-      // separate API call for that. Pesapal's own callback_url (built
-      // server-side with the origin we just sent) is what brings the
-      // browser back here afterward — see the transactionId handling below.
-      window.location.href = data.redirectUrl;
+      // equivalent). window.open() is known to be blocked/mishandled there —
+      // but navigating via `location.href` from *this* async callback (after
+      // an awaited fetch) turned out to have its own failure mode on some
+      // devices: by the time the fetch resolves, the browser no longer
+      // treats the navigation as tied to the user's original tap, and the
+      // mini-browser was seen bailing out with a "this page isn't verified /
+      // open in your browser" prompt instead of following it — payment never
+      // started. Showing a real, explicitly-tapped link instead makes the
+      // navigation to Pesapal a direct, synchronous result of that second
+      // tap, which the mini-browser reliably honors as a normal top-level
+      // navigation instead of an untrusted programmatic one. Pesapal's own
+      // callback_url (built server-side with the origin we just sent) is
+      // still what brings the browser back here afterward — see the
+      // transactionId handling below.
+      $("#purchase-status").classList.add("hidden");
+      $("#continue-to-payment").href = data.redirectUrl;
+      $("#purchase-redirect").classList.remove("hidden");
       return;
     }
     pollTransaction(data.transactionId);

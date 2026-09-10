@@ -39,6 +39,12 @@
         <button type="button" class="btn-link" id="back-to-plans">← choose a different plan</button>
       </form>
 
+      <div id="purchase-redirect" class="hidden status-box">
+        <p>You're ready to pay.</p>
+        <a id="continue-to-payment" class="btn-primary" href="#">Continue to secure payment →</a>
+        <p class="muted small">This opens Pesapal's payment page, where you'll get the M-Pesa prompt.</p>
+      </div>
+
       <div id="purchase-status" class="hidden status-box">
         <div class="spinner"></div>
         <p id="status-text">Waiting for M-Pesa confirmation…</p>

@@ -29,7 +29,9 @@
 #   {{RADIUS_SECRET}}            shared RADIUS secret
 #   {{MIKROTIK_API_USERNAME}}    generated per-device API user
 #   {{MIKROTIK_API_PASSWORD}}    generated per-device API password
-#   {{CAPTIVE_PORTAL_BASE_URL}}  public Supabase Storage URL for the built portal
+#   {{CAPTIVE_PORTAL_BASE_URL}}  where the built portal is hosted, e.g.
+#                                https://captive.echoisp.click (default —
+#                                see apps/captive-portal/README.md)
 #   {{FUNCTIONS_BASE_URL}}       https://<project>.supabase.co/functions/v1
 #   {{PROVISIONING_TOKEN}}       this device's heartbeat bearer token
 # ============================================================

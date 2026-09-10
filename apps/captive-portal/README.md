@@ -49,11 +49,23 @@ VITE_FUNCTIONS_BASE_URL=https://<project-ref>.supabase.co/functions/v1 pnpm buil
 # outputs dist/login.html, dist/redirect.html, dist/assets/*
 ```
 
-Upload `dist/` to the `captive-portal-builds` Supabase Storage bucket at
-the same relative paths (matching `CAPTIVE_PORTAL_FILES` in
-`supabase/functions/_shared/router-template.ts`) — the RouterOS
-provisioning script's `/tool fetch` calls pull from
-`${SUPABASE_URL}/storage/v1/object/public/captive-portal-builds/...`.
+The provisioning script's `/tool fetch` calls default to
+`https://captive.echoisp.click/...` (`CAPTIVE_PORTAL_BASE_URL` in
+`supabase/functions/_shared/router-template.ts`'s callers — override with
+the `CAPTIVE_PORTAL_BASE_URL` function secret if you're hosting elsewhere).
+Deploy `dist/` there as a static site — e.g. a Vercel project (same
+platform as `apps/admin`) with `captive.echoisp.click` as its custom
+domain, build command `vite build`, output directory `dist`. Vite's fixed
+output filenames (see `vite.config.js`) mean the deployed paths land
+exactly where RouterOS's `/tool fetch` calls expect them — no rewrites
+needed, as long as `login.html` isn't renamed to `index.html` by whatever
+static host you use.
+
+(Older deployments may still point `CAPTIVE_PORTAL_BASE_URL` at a Supabase
+Storage bucket instead — matching `CAPTIVE_PORTAL_FILES` in
+`supabase/functions/_shared/router-template.ts` at the same relative
+paths works there too, e.g.
+`${SUPABASE_URL}/storage/v1/object/public/captive-portal-builds/...`.)
 
 `redirect.html` is a MikroTik-native template (not built by Vite — it lives
 in `public/` and is copied verbatim) that RouterOS's hotspot uses to catch

@@ -62,7 +62,7 @@ async function authenticate({ username, password, chapId, chapPassword, chapChal
   // same device reconnecting within its paid window" versus a different
   // device trying to reuse a shared code — see the long comment on
   // claimVoucher itself in db.js.
-  if (matches(username)) {
+  if (username && matches(username)) {
     const voucher = await db.claimVoucher(normalizeVoucherCode(username), macAddress);
     if (voucher) {
       const plan = await db.findPlan(voucher.plan_id);

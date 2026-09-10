@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
       radiusSecret: radiusSecret!,
       mikrotikApiUsername,
       mikrotikApiPassword,
-      captivePortalBaseUrl: `${Deno.env.get("SUPABASE_URL")}/storage/v1/object/public/captive-portal-builds`,
+      captivePortalBaseUrl: Deno.env.get("CAPTIVE_PORTAL_BASE_URL") ?? "https://captive.echoisp.click",
       functionsBaseUrl,
     });
 

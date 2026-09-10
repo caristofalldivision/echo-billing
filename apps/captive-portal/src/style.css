@@ -329,6 +329,12 @@ input:focus {
   opacity: 0.5;
 }
 
+a.btn-primary {
+  display: inline-block;
+  text-decoration: none;
+  text-align: center;
+}
+
 .btn-link {
   background: none;
   border: none;
