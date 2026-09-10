@@ -7,6 +7,7 @@
 //   GET  /portal-api/plans?type=hotspot|pppoe
 //   POST /portal-api/purchase        { planId, phone, email? }
 //   GET  /portal-api/status?transactionId=...
+//   GET  /portal-api/resume?phone=...  (self-service recovery — see below)
 //   POST /portal-api/check-voucher   { code }
 //   GET  /portal-api/return?ref=...  (Pesapal browser redirect target, returns HTML)
 import { handlePreflight, withCors } from "../_shared/cors.ts";
@@ -28,6 +29,32 @@ import { normalizeVoucherCode } from "../_shared/vouchers.ts";
 // connections onto a single query.
 const CACHE_TTL_MS = 30_000;
 const cache = new Map<string, { data: unknown; expiresAt: number }>();
+
+// Generates the common Kenyan MSISDN spellings of a phone number so /resume
+// can match a `transactions.phone` value stored exactly as the customer
+// typed it at purchase time, even if they type it differently when coming
+// back to recover it (07..., 254..., +254...).
+function phoneVariants(raw: string): string[] {
+  const digits = raw.replace(/[^\d]/g, "");
+  const variants = new Set<string>([raw.trim()]);
+  if (digits.startsWith("254") && digits.length === 12) {
+    variants.add(digits);
+    variants.add("0" + digits.slice(3));
+    variants.add("+" + digits);
+  } else if (digits.startsWith("0") && digits.length === 10) {
+    variants.add(digits);
+    variants.add("254" + digits.slice(1));
+    variants.add("+254" + digits.slice(1));
+  } else if ((digits.startsWith("7") || digits.startsWith("1")) && digits.length === 9) {
+    variants.add(digits);
+    variants.add("0" + digits);
+    variants.add("254" + digits);
+    variants.add("+254" + digits);
+  } else if (digits) {
+    variants.add(digits);
+  }
+  return [...variants];
+}
 
 async function cached<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
   const hit = cache.get(key);
@@ -123,6 +150,58 @@ Deno.serve(async (req) => {
         .single();
 
       return withCors({
+        status: fresh?.status ?? txn.status,
+        voucherCode: (fresh as unknown as { vouchers: { code: string } | null } | null)?.vouchers?.code,
+      });
+    }
+
+    if (route === "resume" && req.method === "GET") {
+      // Self-service recovery for when the automatic redirect-back from
+      // Pesapal drops the customer (mini-browser quirks, closed the app,
+      // walked out of range) before /status or /return ever got polled —
+      // added 2026-09-10 after exactly that happened live. Lets a customer
+      // who paid but never got connected/never saw their voucher come back
+      // to the captive portal fresh and recover by phone number instead of
+      // being stuck with no path forward. Looks up the most recent
+      // transaction for that phone in the last few hours and reconciles it
+      // the same idempotent, re-verified way /status does — this is not a
+      // new fulfillment path, just another entry point into the existing
+      // one. Phone is matched against common Kenyan format variants since
+      // `transactions.phone` is stored exactly as the customer typed it at
+      // purchase time (not normalized), and they may type it differently
+      // when coming back to recover it.
+      const phone = url.searchParams.get("phone");
+      if (!phone) return withCors({ error: "phone is required" }, { status: 400 });
+      const supabase = supabaseAdmin();
+      const since = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+      const { data: txn, error } = await supabase
+        .from("transactions")
+        .select("*, plans(*), customers(*)")
+        .in("phone", phoneVariants(phone))
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error || !txn) return withCors({ found: false });
+
+      if (txn.status !== "completed" && txn.status !== "failed") {
+        try {
+          const org = await getOrgSettings(txn.org_id);
+          await reconcileTransaction(supabase, org, txn);
+        } catch (err) {
+          console.error("resume reconcile error", err);
+        }
+      }
+
+      const { data: fresh } = await supabase
+        .from("transactions")
+        .select("status, vouchers!transactions_voucher_id_fkey(code)")
+        .eq("id", txn.id)
+        .single();
+
+      return withCors({
+        found: true,
+        transactionId: txn.id,
         status: fresh?.status ?? txn.status,
         voucherCode: (fresh as unknown as { vouchers: { code: string } | null } | null)?.vouchers?.code,
       });

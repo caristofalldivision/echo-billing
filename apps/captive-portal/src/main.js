@@ -16,7 +16,19 @@ document.querySelectorAll(".tab").forEach((tab) => {
 });
 
 // --- MikroTik login submission -----------------------------------------
+// Remembers the code in localStorage on every attempt — RADIUS's
+// claimVoucher already allows the same code to re-authenticate from the
+// same device within the plan's paid window (see CLAUDE.md), so if the
+// hotspot session ever drops (idle timeout, router reboot, walking out of
+// range and back), tryAutoReconnect() below can get the customer back
+// online just by them reopening the captive portal — no digging up the
+// code or re-paying.
 function connectWithCode(code) {
+  try {
+    localStorage.setItem("echo_last_voucher_code", code);
+  } catch {
+    // private browsing / storage disabled — auto-reconnect just won't fire
+  }
   $("#mt-username").value = code;
   $("#mt-password").value = code;
   $("#mikrotik-login").submit();
@@ -93,26 +105,21 @@ $("#purchase-form").addEventListener("submit", async (e) => {
     if (!res.ok) throw new Error(data.error ?? "Could not start payment");
 
     if (data.redirectUrl) {
-      // Not an automatic window.location.href here, and not a popup either.
-      // MikroTik hotspot logins run inside the OS's restricted captive-portal
+      // Full-page redirect, not a popup — MikroTik hotspot logins are
+      // typically opened inside the OS's restricted captive-portal
       // mini-browser (Apple's Captive Network Assistant, Android's
-      // equivalent). window.open() is known to be blocked/mishandled there —
-      // but navigating via `location.href` from *this* async callback (after
-      // an awaited fetch) turned out to have its own failure mode on some
-      // devices: by the time the fetch resolves, the browser no longer
-      // treats the navigation as tied to the user's original tap, and the
-      // mini-browser was seen bailing out with a "this page isn't verified /
-      // open in your browser" prompt instead of following it — payment never
-      // started. Showing a real, explicitly-tapped link instead makes the
-      // navigation to Pesapal a direct, synchronous result of that second
-      // tap, which the mini-browser reliably honors as a normal top-level
-      // navigation instead of an untrusted programmatic one. Pesapal's own
-      // callback_url (built server-side with the origin we just sent) is
-      // still what brings the browser back here afterward — see the
-      // transactionId handling below.
-      $("#purchase-status").classList.add("hidden");
-      $("#continue-to-payment").href = data.redirectUrl;
-      $("#purchase-redirect").classList.remove("hidden");
+      // equivalent), which is known to block/mishandle window.open(). This
+      // page is what actually triggers the M-Pesa STK push; there's no
+      // separate API call for that. Pesapal's own callback_url (built
+      // server-side with the origin we just sent) is what brings the
+      // browser back here afterward — see the transactionId handling below.
+      // (A tap-through "Continue to payment" link was tried here 2026-09-10
+      // to work around a theorized user-gesture-loss issue, but broke the
+      // flow in practice without confirmed benefit — reverted per live
+      // testing. If a "not verified/open in browser" prompt resurfaces on a
+      // specific device, get the exact device/OS and reproduce it before
+      // reintroducing anything like that again — don't guess.)
+      window.location.href = data.redirectUrl;
       return;
     }
     pollTransaction(data.transactionId);
@@ -202,6 +209,79 @@ $("#retry-purchase").addEventListener("click", () => {
   selectedPlan = null;
 });
 
+// --- Self-service recovery ----------------------------------------------
+// Added 2026-09-10 after a live payment where Pesapal's redirect-back
+// dropped the customer before /status or /return ever polled — paid, no
+// voucher shown, no automatic connect, and no way to recover short of
+// paying again or texting support. This gives an explicit path: look up
+// the most recent payment for a phone number and pick up wherever it left
+// off (still pending → resume polling, completed → show the code and
+// connect, not found/failed → say so plainly instead of a dead end).
+function showRecoverForm() {
+  $("#purchase-failed").classList.add("hidden");
+  $("#recover-form").classList.remove("hidden");
+  $("#recover-message").textContent = "";
+}
+$("#show-recover").addEventListener("click", showRecoverForm);
+$("#show-recover-from-failed").addEventListener("click", showRecoverForm);
+$("#hide-recover").addEventListener("click", () => {
+  $("#recover-form").classList.add("hidden");
+  $("#recover-message").textContent = "";
+});
+
+$("#recover-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const phone = $("#recover-phone").value.trim();
+  if (!phone) return;
+  const messageEl = $("#recover-message");
+  messageEl.textContent = "Looking up your payment…";
+  try {
+    const res = await fetch(`${PORTAL_API}/resume?phone=${encodeURIComponent(phone)}`);
+    const data = await res.json();
+    if (!data.found) {
+      messageEl.textContent = "No recent payment found for that number. Try again or contact support.";
+      return;
+    }
+    $("#recover-form").classList.add("hidden");
+    if (data.status === "completed") {
+      messageEl.textContent = "";
+      $("#panel-buy").classList.add("active");
+      showSuccess(data.voucherCode);
+    } else if (data.status === "failed" || data.status === "cancelled") {
+      messageEl.textContent = "That payment didn't go through — please try again.";
+    } else {
+      messageEl.textContent = "";
+      $("#panel-buy").classList.add("active");
+      $("#purchase-status").classList.remove("hidden");
+      $("#status-text").textContent = "Confirming your payment…";
+      $("#status-subtext").textContent = "Almost there.";
+      $("#status-elapsed").textContent = "";
+      pollTransaction(data.transactionId);
+    }
+  } catch {
+    messageEl.textContent = "Couldn't check right now — check your connection and try again.";
+  }
+});
+
+// Tries the last voucher code that successfully connected on this device,
+// once per browser session (not on every reload — an expired/used-up code
+// would otherwise auto-resubmit forever, since a failed hotspot login just
+// redirects right back to this same page). Skipped entirely while resuming
+// a payment (below) so the two auto-flows can't race each other.
+function tryAutoReconnect() {
+  if (resumeTransactionId) return;
+  if (sessionStorage.getItem("echo_reconnect_attempted")) return;
+  let code;
+  try {
+    code = localStorage.getItem("echo_last_voucher_code");
+  } catch {
+    return;
+  }
+  if (!code) return;
+  sessionStorage.setItem("echo_reconnect_attempted", "1");
+  connectWithCode(code);
+}
+
 // --- Voucher flow ----------------------------------------------------
 // Codes are shown to customers as XXXXX-XXXXX, but phone keyboards/
 // autocomplete happily drop or mangle the dash — normalize the same way
@@ -271,3 +351,4 @@ async function applyBranding() {
 
 applyBranding();
 loadPlans();
+tryAutoReconnect();

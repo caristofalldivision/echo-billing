@@ -83,11 +83,30 @@ export async function reconcileTransaction(supabase: any, org: any, txn: any): P
     // on TalkSasa/Resend round-trips.
     runInBackground(() => sendReceiptNotifications(supabase, org, txn, voucherCode));
   } else if (status.payment_status_description === "Failed") {
-    await supabase
-      .from("transactions")
-      .update({ status: "failed" })
-      .eq("id", txn.id)
-      .eq("status", "pending");
+    // Not immediately trusted — found live 2026-09-10: a transaction polled
+    // via /status seconds after creation got back "Failed" from Pesapal's
+    // sandbox, got written here as terminal, and was then never re-checked
+    // again (the guard above skips anything already "failed" or
+    // "completed") — even though the customer's M-Pesa PIN prompt hadn't
+    // resolved yet. Re-querying that same order_tracking_id directly
+    // afterward showed Pesapal had since flipped it to "Completed" with a
+    // real confirmation code — the payment went through, but the customer
+    // got no voucher, no SMS, and no way to recover, because we'd already
+    // called it dead. /status polls every 3s starting immediately after
+    // purchase creation, so it's very likely to catch Pesapal mid-flight
+    // before the STK push has even been acted on — giving it a grace
+    // window before accepting "Failed" as authoritative costs nothing
+    // (reconcile-pending's 1-minute sweep keeps checking regardless) and
+    // avoids exactly this false-negative.
+    const ageMs = Date.now() - new Date(txn.created_at).getTime();
+    const FAILURE_GRACE_MS = 45_000;
+    if (ageMs > FAILURE_GRACE_MS) {
+      await supabase
+        .from("transactions")
+        .update({ status: "failed" })
+        .eq("id", txn.id)
+        .eq("status", "pending");
+    }
   }
 }
 
